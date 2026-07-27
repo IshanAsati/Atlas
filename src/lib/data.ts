@@ -10,7 +10,7 @@
  */
 
 import {
-  databases,
+  getDatabases,
   DB_ID,
   COLLECTIONS,
 } from "@/lib/appwrite/server";
@@ -40,10 +40,14 @@ function clean<T extends Record<string, unknown>>(doc: T): T {
   return { id: $id as string, ...rest } as unknown as T;
 }
 
+function db() {
+  return getDatabases();
+}
+
 async function safeGet<T>(collection: string, id: string): Promise<T | null> {
   if (!process.env.APPWRITE_SECRET_KEY) return null;
   try {
-    const doc = await databases.getDocument(DB_ID, collection, id);
+    const doc = await db().getDocument(DB_ID, collection, id);
     return clean(doc as unknown as Record<string, unknown>) as unknown as T;
   } catch {
     return null;
@@ -53,7 +57,7 @@ async function safeGet<T>(collection: string, id: string): Promise<T | null> {
 async function safeList<T>(collection: string, queries: string[] = []): Promise<T[]> {
   if (!process.env.APPWRITE_SECRET_KEY) return [];
   try {
-    const { documents } = await databases.listDocuments(DB_ID, collection, queries);
+    const { documents } = await db().listDocuments(DB_ID, collection, queries);
     return documents.map((d) => clean(d as unknown as Record<string, unknown>)) as unknown as T[];
   } catch {
     return [];
@@ -176,14 +180,14 @@ export async function getServerCalendarDays(
 export async function updateTopicConfidence(id: string, confidence: number) {
   if (!process.env.APPWRITE_SECRET_KEY) return;
   try {
-    await databases.updateDocument(DB_ID, COLLECTIONS.topics, id, { confidence });
+    await db().updateDocument(DB_ID, COLLECTIONS.topics, id, { confidence });
   } catch { /* silent — client-side override still holds */ }
 }
 
 export async function updateTaskStatus(id: string, status: string) {
   if (!process.env.APPWRITE_SECRET_KEY) return;
   try {
-    await databases.updateDocument(DB_ID, COLLECTIONS.missionTasks, id, { status });
+    await db().updateDocument(DB_ID, COLLECTIONS.missionTasks, id, { status });
   } catch { /* silent */ }
 }
 
@@ -196,20 +200,20 @@ export async function saveExtractedSubjects(
   const existingSubs = await safeList<Subject>(COLLECTIONS.subjects);
   const existingTops = await safeList<Topic>(COLLECTIONS.topics);
   for (const s of existingSubs) {
-    await databases.deleteDocument(DB_ID, COLLECTIONS.subjects, s.id);
+    await db().deleteDocument(DB_ID, COLLECTIONS.subjects, s.id);
   }
   for (const t of existingTops) {
-    await databases.deleteDocument(DB_ID, COLLECTIONS.topics, t.id);
+    await db().deleteDocument(DB_ID, COLLECTIONS.topics, t.id);
   }
   // Insert new
   for (const s of subs) {
-    await databases.createDocument(DB_ID, COLLECTIONS.subjects, ID.unique(), {
+    await db().createDocument(DB_ID, COLLECTIONS.subjects, ID.unique(), {
       ...s,
       studentId: STUDENT_ID,
     });
   }
   for (const t of tops) {
-    await databases.createDocument(DB_ID, COLLECTIONS.topics, ID.unique(), {
+    await db().createDocument(DB_ID, COLLECTIONS.topics, ID.unique(), {
       ...t,
       studentId: STUDENT_ID,
     });
@@ -223,14 +227,14 @@ export async function saveMission(
 ) {
   if (!process.env.APPWRITE_SECRET_KEY) return;
   const mId = `m-${date}`;
-  try { await databases.deleteDocument(DB_ID, COLLECTIONS.missions, mId); } catch {}
-  await databases.createDocument(DB_ID, COLLECTIONS.missions, mId, {
+  try { await db().deleteDocument(DB_ID, COLLECTIONS.missions, mId); } catch {}
+  await db().createDocument(DB_ID, COLLECTIONS.missions, mId, {
     studentId: STUDENT_ID,
     date,
     totalMinutes,
   });
   for (const [i, t] of tasks.entries()) {
-    await databases.createDocument(DB_ID, COLLECTIONS.missionTasks, ID.unique(), {
+    await db().createDocument(DB_ID, COLLECTIONS.missionTasks, ID.unique(), {
       ...t,
       missionId: mId,
       order: i,

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { FocusConsole } from "@/components/focus/FocusConsole";
 
@@ -7,5 +8,9 @@ export const metadata: Metadata = {
 
 /** Deliberately outside the shell layout: no rail, nothing to click away to. */
 export default function FocusPage() {
-  return <FocusConsole />;
+  return (
+    <Suspense fallback={null}>
+      <FocusConsole />
+    </Suspense>
+  );
 }
