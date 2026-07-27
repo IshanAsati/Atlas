@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Shell(npm:*)",
+      "Shell(npx tsc --noEmit 2 >& 1)",
+      "Shell(node -e require('next/dist/build'); console.log('next ok') 2 >& 1)",
+      "Shell(node scripts/setup-appwrite.mjs 2 >& 1)",
+      "Shell(node scripts/seed-appwrite.mjs 2 >& 1)",
+      "Shell(./node_modules/.bin/tsc:*)",
+      "Shell(node_modules/.bin/tsc:*)",
+      "Shell(cd /home/light/atlas && ls node_modules/.bin/tsc 2>&1; node -e \"require('typescript'); console.log('ts ok')\" 2>&1)",
+      "Shell(git:*)",
+      "Shell(cd /home/light/atlas && git commit -F - <<'EOF' Phase 0–3: Live coach verified, all dead controls wired, Appwrite persistence, real syllabus extraction Phase 0: Verified live DeepSeek coach (npm run check:coach prints LIVE) Phase 1: Wired all 7 dead controls - FocusConsole: mark task complete, skip to break, topic param support - TodayMission: swap task handler, focus link with topic param - LearningGraph: focus link with topic param - CalendarBoard: day cells changed to visual-only (no inert buttons) - Onboarding: inline date picker on exam date buttons Phase 2: Appwrite infrastructure - Server SDK client (src/lib/appwrite/server.ts) - Auto-setup script (scripts/setup-appwrite.mjs) — 6 collections + storage bucket - Seed script (scripts/seed-appwrite.mjs) - Hybrid data layer (src/lib/data.ts) — Appwrite with mock fallback Phase 3: Real Pipeline 1 — syllabus extraction - Extraction prompt (src/lib/extract/prompt.ts) - Streaming NDJSON API route (src/app/api/extract/route.ts) - Wired Onboarding to real file upload + API call Co-authored-by: CommandCodeBot <noreply@commandcode.ai> EOF)",
+      "Shell(which:*)",
+      "Shell(gh:*)"
+    ],
+    "deny": [],
+    "defaultMode": "default"
+  }
+}

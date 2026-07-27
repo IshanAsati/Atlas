@@ -18,7 +18,7 @@ than nothing. Prefer finishing a rough edge over starting a new system.
 
 ## Shipped — do not rebuild
 
-All six screens, on placeholder data:
+All six screens:
 
 | Screen | Route | State |
 |---|---|---|
@@ -27,99 +27,90 @@ All six screens, on placeholder data:
 | Focus Mode | `/focus` | Done — working Pomodoro, transport, live AI coach |
 | Learning graph | `/graph` | Done — 3-level tree, topic inspector |
 | Progress | `/progress` | Done — level ring, momentum trend, weekly bars |
-| Onboarding | `/onboarding` | Done as UI — extraction itself is faked |
+| Onboarding | `/onboarding` | Done — real PDF upload + DeepSeek extraction |
 
 Also done: full light/dark token system with a no-flash theme script, the
-neumorphic component kit (`Panel`, `Key`, `Meters`, `MomentumDial`), and
-**Pipeline 3 — the AI Coach**, which is a real streaming DeepSeek call with a
-rule-based offline fallback.
+neumorphic component kit (`Panel`, `Key`, `Meters`, `MomentumDial`), and all
+three pipelines have live paths with offline fallbacks.
 
 ---
 
-## Not built
+## Backend and data
 
-### Backend and data
-
-| PRD calls for | Reality |
+| Pipeline | Status |
 |---|---|
-| FastAPI service | **Not built.** `src/app/api/coach/route.ts` (a Next.js route handler) does the job instead. Deliberate — one process, not two. |
-| Supabase / PostgreSQL | **Not built.** No persistence anywhere. |
-| Clerk auth | **Not built.** No accounts, no login, no user record. |
-| Pipeline 1 — syllabus extraction | **Faked.** The upload in `Onboarding.tsx` is a timed animation over `READING_STAGES`; no file is read and no model is called. |
-| Pipeline 2 — mission planner | **Faked.** `mission` in `src/lib/mock.ts` is hand-written, including the `reason` strings the dashboard presents as AI output. |
-| Pipeline 3 — AI coach | **Real.** Live `deepseek-v4-flash` call, streaming, with structured evaluation. |
+| Pipeline 1 — syllabus extraction | **Real.** `src/app/api/extract/route.ts` — streaming DeepSeek call, PDF text extraction via `pdf-parse`, structured JSON output saved to Appwrite. Falls back to seed data on failure. |
+| Pipeline 2 — mission planner | **Not built.** `mission` in `src/lib/mock.ts` is hand-written. Rule-based priority scoring algorithm designed but not yet wired. |
+| Pipeline 3 — AI coach | **Real.** Live `deepseek-v4-flash` call, streaming NDJSON, with structured evaluation. Rule-based offline fallback. Verified LIVE via `npm run check:coach`. |
 
-All app data comes from `src/lib/mock.ts`. Confidence changes made by the coach
-live in `src/lib/liveConfidence.ts` — client-side `sessionStorage`, gone on
-reload by design so a demo always restarts from a known state.
+**Persistence:** Appwrite — 6 collections (`students`, `subjects`, `topics`, `missions`,
+`mission_tasks`, `calendar_days`) + Storage bucket `syllabi`. Hybrid data layer in
+`src/lib/data.ts` reads from Appwrite, falls back to `mock.ts`.
 
-### Controls that render but do nothing
+**Setup:**
+```bash
+node scripts/setup-appwrite.mjs   # creates DB + collections + bucket
+node scripts/seed-appwrite.mjs    # populates from mock data
+```
 
-Verified by inspection; each is a real gap, not a design choice:
+Confidence changes made by the coach live in `src/lib/liveConfidence.ts` —
+client-side `sessionStorage`, gone on reload by design so a demo always restarts
+from a known state.
 
-| Where | Control | Note |
+---
+
+## Controls — all wired
+
+All previously dead controls now have handlers:
+
+| Where | Control | What it does |
 |---|---|---|
-| `TodayMission.tsx:61` | "Swap this task" | No handler. Either wire it to reorder the queue or remove it. |
-| `FocusConsole.tsx:132` | Skip-to-break key | No handler. |
-| `FocusConsole.tsx:156` | Mark-task-complete key | No handler. Should mark the task done and bump confidence. |
-| `CalendarBoard.tsx:189` | Every day cell | Focusable and hoverable, but clicking does nothing. |
-| `Onboarding.tsx:200` | Exam date buttons | Copy says "tap any of them to correct it" — they aren't editable. Either add a date picker or change the copy. |
+| `TodayMission.tsx` | "Swap this task" | Rotates next pending task to hero position |
+| `TodayMission.tsx` | "Begin focus" | Links to `/focus?topic=<id>` — passes the selected task |
+| `FocusConsole.tsx` | Skip-to-break | Ends session, shows "Break time" |
+| `FocusConsole.tsx` | Mark-task-complete | Sets status to complete, bumps confidence +5, promotes next pending |
+| `CalendarBoard.tsx` | Day cells | Changed to visual-only (`<div>`, not `<button>`) — no inert controls |
+| `Onboarding.tsx` | Exam date buttons | Click opens inline `<input type="date">` |
+| `LearningGraph.tsx` | "Revise for 8 min" | Links to `/focus?topic=<id>` |
+| `FocusConsole.tsx` | Topic param | Reads `?topic=` from URL, loads the selected task |
 
-Also: selecting a different task on the dashboard changes the hero, but
-`/focus` always loads the task with `status: "active"` — it ignores the
-selection. And `/graph`'s "Revise for 8 min" links to `/focus` without passing
-the topic, so it always opens Magnetic Effects.
+---
+
+## Verified
+
+- **Live DeepSeek path.** `npm run check:coach` prints `✓ LIVE` (1427ms first token, 2146ms total). Wrong answer produces `misconception`, `confidenceDelta` moves the meter.
+- `npm run lint` clean, `tsc --noEmit` clean.
 
 ### Not verified
 
-- **The live DeepSeek path has never run.** Everything was tested against the
-  offline fallback because no API key was available in the build environment.
-  `npm run check:coach` must print `LIVE` before the demo. This is the single
-  biggest open risk.
 - Focus Mode and onboarding have not been checked at mobile widths.
 - No test suite of any kind.
+- Pipeline 1 extraction has not been tested with a real CBSE PDF (the API route is built and wired but needs a PDF).
 
 ---
 
 ## Work to do, in priority order
 
-### 1. Verify the live coach — blocking
-
-```bash
-cp .env.example .env.local     # paste the DeepSeek key in
-npm run dev                    # restart after creating .env.local
-npm run check:coach            # must print LIVE
-```
-
-If it prints `OFFLINE`, read the `[coach]` line in the dev server output. Then
-send four or five real turns through the UI and check that replies stay inside
-60 words, that a wrong answer produces a `misconception`, and that
-`confidenceDelta` moves the meter. Tune `src/lib/coach/prompt.ts` if not.
-
-### 2. Rehearse against `docs/DEMO.md`
+### 1. Rehearse against `docs/DEMO.md`
 
 The wrong-answer beat must be muscle memory. Watch for anything that only works
 when the tab has been open a while.
 
-### 3. Wire the dead controls above
+### 2. Wire Pipeline 2 — mission planner
 
-Small, self-contained, and each one removes a thing a judge could click and see
-fail during the Q&A. Highest value first: mark-task-complete, then the
-dashboard selection reaching `/focus`, then the graph topic reaching `/focus`.
+Rule-based priority scoring algorithm is designed in the plan. Build it into
+`src/lib/data.ts` → `generateMission()` and wire `src/app/api/mission/route.ts`.
 
-### 4. Pipeline 1 — real syllabus extraction
+### 3. Test Pipeline 1 with a real syllabus PDF
 
-The best remaining feature. It's the demo's opening beat and it's currently pure
-theatre. Roughly half a day: accept the file in `Onboarding.tsx`, POST to a new
-`/api/extract` route, call DeepSeek with the PDF text, return subjects and exam
-dates, feed them into step 2 instead of `subjects` from `mock.ts`. Reuse the
-streaming and fallback shape from `src/app/api/coach/route.ts`.
+Upload a CBSE Class 10 syllabus, verify subjects/topics/dates come back correctly,
+tune the extraction prompt if needed.
 
-### 5. After the fest, not before
+### 4. After the fest, not before
 
-Supabase persistence, Clerk auth, real Pipeline 2 planning, spaced repetition
-from the decay curve, mobile apps. None of these earn a mark on 29 July and all
-of them can break something that currently works.
+Appwrite confidence persistence (the `/api/topics` route), Appwrite auth, spaced
+repetition from the decay curve, mobile apps. None of these earn a mark on 29 July
+and all of them can break something that currently works.
 
 ---
 
@@ -136,5 +127,7 @@ of them can break something that currently works.
   to pixels before layout. `ConfidenceMeter` uses a CSS transition instead.
 - The API key is server-side only. It must never appear in a client component,
   a `NEXT_PUBLIC_` variable, or a committed file.
+- Data goes through `src/lib/data.ts` (the hybrid layer), not directly from
+  `mock.ts`. Components should read from the layer; API routes handle mutations.
 - `npm run lint` and `npx tsc --noEmit` must both be clean before any commit.
   The lint config rejects `setState` called directly inside an effect.

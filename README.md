@@ -1,13 +1,23 @@
-# Atlas — UI
+# Atlas — UI + Backend
 
-Front end for Atlas, the study operating system described in `docs/Atlas_PRD_v1.7_Fig3_Fixed.pdf`.
-This is the UI layer only: every screen runs on placeholder data shaped like the
-Supabase schema in §8 of the PRD. No API, no auth, no AI calls yet.
+Front end **and back end** for Atlas, the study operating system described in `docs/Atlas_PRD_v1.7_Fig3_Fixed.pdf`.
+
+- **Coach (Pipeline 3)**: real streaming DeepSeek `deepseek-v4-flash` call with rule-based offline fallback. Verified LIVE.
+- **Extraction (Pipeline 1)**: real PDF upload → DeepSeek → structured subjects + topics. Streaming stage updates.
+- **Persistence**: Appwrite DB (6 collections) + Storage. Hybrid data layer with mock fallback — app runs with or without a backend.
+- **Screens**: all six built. All dead controls wired. Dashboard, Calendar, Focus Mode, Graph, Progress, Onboarding.
+
+Still mocked: Pipeline 2 (mission planning). Still missing: auth, spaced repetition, mobile apps.
 
 ```bash
-npm run dev     # http://localhost:3000
-npm run build
-npm run lint
+npm install
+npm run dev              # http://localhost:3000
+cp .env.example .env.local   # paste DeepSeek + Appwrite keys
+npm run check:coach      # must print LIVE before any demo
+
+# Appwrite setup (one-time)
+node scripts/setup-appwrite.mjs
+node scripts/seed-appwrite.mjs
 ```
 
 ## Design direction
@@ -54,16 +64,28 @@ src/app/
     progress/         XP, momentum trend, weekly minutes, confidence by subject
   focus/              Focus Mode — deliberately outside the shell, no rail
   onboarding/         Zero-type onboarding — also outside the shell
+  api/
+    coach/            Pipeline 3: streaming coaching endpoint (NDJSON)
+    extract/          Pipeline 1: PDF syllabus extraction (NDJSON)
+    mission/          Pipeline 2: mission CRUD (planned)
+    topics/           topic confidence PATCH (planned)
 src/components/
   ui/                 Panel, Key, Icons, Meters, MomentumDial — the kit
-  shell/              Rail, PageHeader
+  shell/              Rail, PageHeader, ThemeToggle
   dashboard/ focus/ calendar/ graph/ progress/ onboarding/
-src/app/api/coach/    the coaching endpoint (streams NDJSON)
 src/lib/
   mock.ts             placeholder data, shaped like the PRD schema
+  data.ts             hybrid data layer — Appwrite with mock fallback
   status.ts           topic status → colour/label (shared by server + client)
   liveConfidence.ts   coach's confidence changes, shared across screens
+  cn.ts               className join helper
   coach/              types, system prompt, offline responder, useCoach hook
+  extract/            extraction prompt for Pipeline 1
+  appwrite/           server SDK client
+scripts/
+  setup-appwrite.mjs  one-shot DB + storage setup
+  seed-appwrite.mjs   populate DB from mock data
+  check-coach.mjs     verify the live coach end-to-end
 ```
 
 `Panel` and `Key` are the only two surface primitives. A `Panel` has a `depth`
@@ -71,14 +93,14 @@ src/lib/
 is anything you can physically push — its pressed state is genuinely inset, not
 tinted.
 
-## The AI Coach
+## The AI Coach (Pipeline 3)
 
-PRD Pipeline 3. Bound to the topic you're revising, not a general chat box.
+Bound to the topic you're revising, not a general chat box.
 
 **Setup**
 
 ```bash
-cp .env.example .env.local     # then paste your key into .env.local
+cp .env.example .env.local     # then paste your DeepSeek key
 npm run dev
 npm run check:coach            # verifies the whole path in one command
 ```
@@ -102,24 +124,60 @@ structured evaluation. **Run it before any demo.**
 
 **When the network is down**
 
-If `DEEPSEEK_API_KEY` is missing or the call fails for any reason, the route
-falls back to `src/lib/coach/offline.ts` — a rule-based Socratic responder over
-the Class 10 topics Atlas ships with. It is not a language model and doesn't
-pretend to be one: the panel badges it "Offline" whenever it answers. This
-exists so a dropped connection degrades the coach instead of killing it.
+If `DEEPSEEK_API_KEY` is missing or the call fails, the route falls back to
+`src/lib/coach/offline.ts` — a rule-based Socratic responder over the Class 10
+topics Atlas ships with. The panel badges it "Offline."
 
 **Prompt design**
 
-`src/lib/coach/prompt.ts` is where "Coach, Not Chatbot" is actually enforced:
-never state the answer to a question it just asked, at most 60 words, stay on
-topic, say so rather than invent. The student's confidence and exam distance go
-into the system prompt, which is what lets it decide between hinting and
-drilling.
+`src/lib/coach/prompt.ts` is where "Coach, Not Chatbot" is enforced: never state
+the answer to a question it just asked, at most 60 words, stay on topic, say so
+rather than invent. The student's confidence and exam distance go into the system
+prompt, which is what lets it decide between hinting and drilling.
+
+## Syllabus Extraction (Pipeline 1)
+
+The onboarding beat is now real. Drop a PDF → DeepSeek extracts subjects, units,
+and exam dates → results stream back as stage updates → saved to Appwrite.
+
+```
+POST /api/extract (multipart PDF)
+→ {"type":"stage","text":"Reading your syllabus..."}
+→ {"type":"stage","text":"Finding units and chapters"}
+→ {"type":"stage","text":"Matching exam dates"}
+→ {"type":"stage","text":"Building your topic graph"}
+→ {"type":"result","subjects":[...],"topics":[...]}
+```
+
+If the API key is missing or extraction fails, `Onboarding.tsx` falls back to
+seed data so the demo never breaks.
+
+## Appwrite Backend
+
+| Collection | Purpose |
+|---|---|
+| `students` | single-user profile (momentum, XP, study time) |
+| `subjects` | board → subject → exam date |
+| `topics` | per-subject topics with confidence + next review |
+| `missions` | daily mission container |
+| `mission_tasks` | individual tasks with status/reason/kind |
+| `calendar_days` | day-level activity records |
+| Bucket `syllabi` | uploaded PDF storage |
+
+**Setup:**
+```bash
+node scripts/setup-appwrite.mjs   # creates DB, collections, bucket
+node scripts/seed-appwrite.mjs    # populates from mock data
+```
+
+The data layer (`src/lib/data.ts`) is hybrid: reads from Appwrite, falls back to
+`mock.ts`. Mutations go to the API → Appwrite; if unreachable, changes hold in
+memory for the session.
 
 ## Notes for the next pass
 
-- `src/lib/mock.ts` is the single seam. Replacing it with API calls should not
-  require touching any component.
+- `src/lib/mock.ts` is a fallback, not the source. `data.ts` is where components
+  should pull from going forward.
 - Anything importing plain values (not components) out of a `"use client"` module
   from a server component gets a client reference, not the value — that's why
   `status.ts` sits in `lib/`.
@@ -127,7 +185,9 @@ drilling.
   wrong for a flex child that hasn't been laid out. `ConfidenceMeter` drives width
   with CSS instead.
 - `liveConfidence.ts` is session-scoped on purpose: reload and you're back to the
-  seed data, so a demo always starts from a known state.
-- Still mocked: syllabus extraction (Pipeline 1) and mission planning
-  (Pipeline 2). Only the coach (Pipeline 3) talks to a real model.
-"# Atlas" 
+  seed data, so a demo always starts from a known state. Appwrite persistence is
+  available via the `/api/topics` route for long-lived sessions.
+- Still mocked: Pipeline 2 (mission planning). The planner is rule-based priority
+  scoring — designed but not yet wired.
+- The API key is server-side only. Never in a client component, a `NEXT_PUBLIC_`
+  variable, or a committed file.
