@@ -295,7 +295,7 @@ function TopicInspector({ topic }: { topic: Topic | null }) {
       </dl>
 
       <Key
-        href="/focus"
+        href={`/focus?topic=${topic.id}`}
         tone="primary"
         size="md"
         className="mt-7 w-full"

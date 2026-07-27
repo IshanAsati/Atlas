@@ -186,8 +186,7 @@ function DayCell({
             : undefined;
 
   return (
-    <button
-      type="button"
+    <div
       title={title}
       className={cn(
         "group relative flex aspect-square flex-col items-center justify-center gap-1 rounded-key",
@@ -195,8 +194,8 @@ function DayCell({
         state === "missed"
           ? "bg-linear-145 from-base-lo to-base-hi shadow-inset"
           : state
-            ? "bg-linear-145 from-base-hi to-base-lo shadow-raised-sm hover:shadow-raised"
-            : "hover:shadow-raised-sm",
+            ? "bg-linear-145 from-base-hi to-base-lo shadow-raised-sm"
+            : "",
         isToday && "shadow-inset from-base-lo to-base-hi bg-linear-145 ring-1 ring-teal/40",
       )}
     >
@@ -220,7 +219,7 @@ function DayCell({
       ) : (
         <span className="size-1.5" />
       )}
-    </button>
+    </div>
   );
 }
 

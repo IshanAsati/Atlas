@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/cn";
 import { IconKey } from "@/components/ui/Key";
@@ -9,19 +10,20 @@ import { Micro } from "@/components/ui/Panel";
 import { ThemeToggle } from "@/components/shell/ThemeToggle";
 import { CoachPanel } from "@/components/focus/CoachPanel";
 import { CheckIcon, CloseIcon, CoachIcon, PauseIcon, PlayIcon, SkipIcon } from "@/components/ui/Icons";
-import { daysUntil, mission, subjects, topics } from "@/lib/mock";
+import { daysUntil, mission, subjects, topics, type MissionTask } from "@/lib/mock";
+import { applyConfidenceDelta } from "@/lib/liveConfidence";
 import type { CoachContext, CoachTurn } from "@/lib/coach/types";
 
 const SESSION_SECONDS = 25 * 60;
 
-/* The session opens on a question, not a greeting — the student should be
-   thinking within a second of the panel appearing. */
-const openingTurns: CoachTurn[] = [
-  {
-    role: "coach",
-    body: "A current-carrying wire is bent into a loop. What happens to the magnetic field at the centre compared with the straight wire?",
-  },
-];
+function openingTurnsFor(topic: MissionTask): CoachTurn[] {
+  return [
+    {
+      role: "coach",
+      body: `Let's work on ${topic.topic}. What's one thing you remember about it — even if it's just a word from the chapter title?`,
+    },
+  ];
+}
 
 function clock(total: number) {
   const m = Math.floor(total / 60);
@@ -31,7 +33,17 @@ function clock(total: number) {
 
 export function FocusConsole() {
   const reduce = useReducedMotion();
-  const task = mission.tasks.find((t) => t.status === "active") ?? mission.tasks[0];
+  const searchParams = useSearchParams();
+  const topicParam = searchParams.get("topic");
+
+  const [missionTasks, setMissionTasks] = useState<MissionTask[]>(mission.tasks);
+  const [markedComplete, setMarkedComplete] = useState(false);
+  const [skipped, setSkipped] = useState(false);
+
+  const task =
+    missionTasks.find((t) => topicParam ? t.topicId === topicParam : t.status === "active") ??
+    missionTasks.find((t) => t.status === "active") ??
+    missionTasks[0];
 
   const [left, setLeft] = useState(SESSION_SECONDS);
   const [running, setRunning] = useState(false);
@@ -52,6 +64,8 @@ export function FocusConsole() {
     };
   }, [task]);
 
+  const openingTurns = useMemo(() => openingTurnsFor(task), [task]);
+
   const finished = left === 0;
   const ticking = running && !finished;
 
@@ -60,6 +74,30 @@ export function FocusConsole() {
     const id = setInterval(() => setLeft((s) => Math.max(0, s - 1)), 1000);
     return () => clearInterval(id);
   }, [ticking]);
+
+  const handleMarkComplete = () => {
+    applyConfidenceDelta(task.topicId, 5);
+    setMissionTasks((prev) => {
+      const next: MissionTask[] = prev.map((t) =>
+        t.id === task.id ? { ...t, status: "complete" } : t,
+      );
+      const nextPending = next.find((t) => t.status === "pending");
+      if (nextPending) {
+        return next.map((t) =>
+          t.id === nextPending.id ? { ...t, status: "active" } : t,
+        );
+      }
+      return next;
+    });
+    setMarkedComplete(true);
+    setTimeout(() => setMarkedComplete(false), 2000);
+  };
+
+  const handleSkipToBreak = () => {
+    setLeft(0);
+    setRunning(false);
+    setSkipped(true);
+  };
 
   const elapsed = 1 - left / SESSION_SECONDS;
 
@@ -129,7 +167,7 @@ export function FocusConsole() {
 
           {/* Transport */}
           <div className="mt-9 flex items-center gap-4">
-            <IconKey label="Skip to break" className="size-12">
+            <IconKey label="Skip to break" className="size-12" onClick={handleSkipToBreak}>
               <SkipIcon width={18} height={18} />
             </IconKey>
             <button
@@ -153,17 +191,23 @@ export function FocusConsole() {
             >
               {ticking ? <PauseIcon width={26} height={26} /> : <PlayIcon width={26} height={26} />}
             </button>
-            <IconKey label="Mark task complete" className="size-12">
+            <IconKey
+              label={markedComplete ? "Task marked complete" : "Mark task complete"}
+              className="size-12"
+              onClick={handleMarkComplete}
+            >
               <CheckIcon width={18} height={18} />
             </IconKey>
           </div>
 
           <p className="micro mt-6 text-ink-3">
-            {finished
-              ? "Session done · take five, then start the next"
-              : ticking
-                ? "Running · phone face down"
-                : "Paused · press play when you're seated"}
+            {skipped
+              ? "Break time · well deserved"
+              : finished
+                ? "Session done · take five, then start the next"
+                : ticking
+                  ? "Running · phone face down"
+                  : "Paused · press play when you're seated"}
           </p>
         </section>
 

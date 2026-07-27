@@ -19,12 +19,27 @@ export function TodayMission() {
   const reduce = useReducedMotion();
   const firstOpen = mission.tasks.find((t) => t.status !== "complete") ?? mission.tasks[0];
   const [selectedId, setSelectedId] = useState(firstOpen.id);
-  const selected = mission.tasks.find((t) => t.id === selectedId) ?? firstOpen;
+  const [queue, setQueue] = useState(mission.tasks);
+  const selected = queue.find((t) => t.id === selectedId) ?? firstOpen;
 
-  const done = mission.tasks.filter((t) => t.status === "complete");
-  const remaining = mission.tasks
+  const done = queue.filter((t) => t.status === "complete");
+  const remaining = queue
     .filter((t) => t.status !== "complete")
     .reduce((sum, t) => sum + t.minutes, 0);
+
+  const handleSwap = () => {
+    const pending = queue.filter((t) => t.status !== "complete");
+    if (pending.length < 2) return;
+    const nextIdx = pending.findIndex((t) => t.id === selected.id);
+    const swapWith = pending[(nextIdx + 1) % pending.length];
+    const reordered = queue.map((t) => {
+      if (t.id === selected.id) return swapWith;
+      if (t.id === swapWith.id) return selected;
+      return t;
+    });
+    setQueue(reordered);
+    setSelectedId(swapWith.id);
+  };
 
   return (
     <section className="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -33,7 +48,7 @@ export function TodayMission() {
         <div className="flex items-center justify-between gap-4">
           <Micro>Today · Mon 27 Jul</Micro>
           <Micro className="text-ink-2">
-            {done.length}/{mission.tasks.length} done
+            {done.length}/{queue.length} done
           </Micro>
         </div>
 
@@ -55,10 +70,10 @@ export function TodayMission() {
         </motion.div>
 
         <div className="mt-7 flex flex-wrap items-center gap-3">
-          <Key href="/focus" tone="primary" size="lg" icon={<ArrowIcon width={17} height={17} />}>
+          <Key href={`/focus?topic=${selected.topicId}`} tone="primary" size="lg" icon={<ArrowIcon width={17} height={17} />}>
             Begin focus
           </Key>
-          <Key size="lg" tone="quiet">
+          <Key size="lg" tone="quiet" onClick={handleSwap}>
             Swap this task
           </Key>
           <span className="ml-auto inline-flex items-center gap-2 text-ink-3">
@@ -69,7 +84,7 @@ export function TodayMission() {
 
         {/* The rest of the queue, in the order the planner set */}
         <ul className="mt-8 space-y-2.5">
-          {mission.tasks.map((task, i) => (
+          {queue.map((task, i) => (
             <TaskKey
               key={task.id}
               task={task}
