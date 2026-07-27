@@ -58,15 +58,63 @@ src/components/
   ui/                 Panel, Key, Icons, Meters, MomentumDial — the kit
   shell/              Rail, PageHeader
   dashboard/ focus/ calendar/ graph/ progress/ onboarding/
+src/app/api/coach/    the coaching endpoint (streams NDJSON)
 src/lib/
   mock.ts             placeholder data, shaped like the PRD schema
   status.ts           topic status → colour/label (shared by server + client)
+  liveConfidence.ts   coach's confidence changes, shared across screens
+  coach/              types, system prompt, offline responder, useCoach hook
 ```
 
 `Panel` and `Key` are the only two surface primitives. A `Panel` has a `depth`
 (`raised`, `raised-lg`, `inset`, `inset-deep`, `flush`) and a `radius`. A `Key`
 is anything you can physically push — its pressed state is genuinely inset, not
 tinted.
+
+## The AI Coach
+
+PRD Pipeline 3. Bound to the topic you're revising, not a general chat box.
+
+**Setup**
+
+```bash
+cp .env.example .env.local     # then paste your key into .env.local
+npm run dev
+npm run check:coach            # verifies the whole path in one command
+```
+
+`check:coach` prints `LIVE` or `OFFLINE`, first-token latency, and the
+structured evaluation. **Run it before any demo.**
+
+**How a turn works**
+
+1. The browser POSTs the topic, the student's live confidence, days since they
+   last studied it, days to the exam, and the thread so far to `/api/coach`.
+2. The route handler calls DeepSeek `deepseek-v4-flash` with `stream: true`
+   and thinking mode off. The API key is read from the server environment and
+   never reaches the browser.
+3. The model streams prose, then one sentinel line carrying JSON:
+   `misconception`, `confidenceDelta`, `nextQuestion`. The route forwards the
+   prose as it arrives and emits the JSON as a single frame at the end, so the
+   client never sees a half-written object.
+4. `confidenceDelta` is written to `liveConfidence.ts`, which the learning
+   graph also reads — so the number moves everywhere at once.
+
+**When the network is down**
+
+If `DEEPSEEK_API_KEY` is missing or the call fails for any reason, the route
+falls back to `src/lib/coach/offline.ts` — a rule-based Socratic responder over
+the Class 10 topics Atlas ships with. It is not a language model and doesn't
+pretend to be one: the panel badges it "Offline" whenever it answers. This
+exists so a dropped connection degrades the coach instead of killing it.
+
+**Prompt design**
+
+`src/lib/coach/prompt.ts` is where "Coach, Not Chatbot" is actually enforced:
+never state the answer to a question it just asked, at most 60 words, stay on
+topic, say so rather than invent. The student's confidence and exam distance go
+into the system prompt, which is what lets it decide between hinting and
+drilling.
 
 ## Notes for the next pass
 
@@ -78,4 +126,8 @@ tinted.
 - Framer Motion resolves percentage widths to pixels at animation start, which is
   wrong for a flex child that hasn't been laid out. `ConfidenceMeter` drives width
   with CSS instead.
+- `liveConfidence.ts` is session-scoped on purpose: reload and you're back to the
+  seed data, so a demo always starts from a known state.
+- Still mocked: syllabus extraction (Pipeline 1) and mission planning
+  (Pipeline 2). Only the coach (Pipeline 3) talks to a real model.
 "# Atlas" 
