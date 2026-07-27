@@ -184,7 +184,6 @@ function parseResponse(full: string): ExtractionFrame {
           nextReview: new Date().toISOString().slice(0, 10),
           lastSeenDays: 0,
         });
-        topicIdx++;
       }
     }
 
