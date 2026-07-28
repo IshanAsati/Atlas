@@ -54,11 +54,12 @@ export async function POST(request: Request) {
         send({ type: "source", value: "live" });
 
         // Single non-streaming call — DeepSeek either responds directly or calls tools
-        await runToolLoop(requestWithMemory, key, send);
+        const finalTurns = await runToolLoop(requestWithMemory, key, send);
 
-        // Persist thread
-        const allCoachTurns = [...mergedTurns, ...body.turns.filter((t) => t.role === "coach")].slice(-20);
-        await saveThread(body.context.topicId, allCoachTurns);
+        // Persist thread — use the final turns from the tool loop
+        if (finalTurns) {
+          await saveThread(body.context.topicId, finalTurns.slice(-30));
+        }
       } catch (error) {
         const reason = error instanceof Error ? error.message : "unknown error";
         console.error("[coach] live call failed, falling back offline:", reason);
@@ -93,8 +94,8 @@ async function runToolLoop(
   key: string,
   send: (frame: CoachFrame) => void,
   depth = 0,
-): Promise<void> {
-  if (depth > 3) return;
+): Promise<CoachTurn[] | null> {
+  if (depth > 3) return body.turns;
 
   const response = await fetch(DEEPSEEK_URL, {
     method: "POST",
@@ -131,10 +132,10 @@ async function runToolLoop(
     }
     const result = extractResult(content);
     send({ type: "result", result });
-    return;
+    return [...body.turns, { role: "coach", body: content }];
   }
 
-  // Execute each tool and append results
+  // Execute each tool and append results as tool role (not user role)
   const turnsAfterCall: CoachTurn[] = [
     ...body.turns,
     { role: "coach", body: content || "Let me check that.", toolCalls: toolCalls.map((t) => ({ id: t.id, function: t.function })) },
@@ -148,12 +149,12 @@ async function runToolLoop(
       send({ type: "action", action: toolResult.action });
     }
     turnsAfterCall.push({
-      role: "student",
+      role: "student" as const,
       body: `[tool result for ${call.function.name}]: ${toolResult.result}`,
     });
   }
 
-  await runToolLoop({ ...body, turns: turnsAfterCall }, key, send, depth + 1);
+  return runToolLoop({ ...body, turns: turnsAfterCall }, key, send, depth + 1);
 }
 
 function extractResult(full: string): CoachResult {
