@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/cn";
 import { Key } from "@/components/ui/Key";
@@ -31,9 +31,23 @@ interface Placed {
 
 export function LearningGraph() {
   const reduce = useReducedMotion();
-  const { subjects } = useAtlasData();
-  const [subjectId, setSubjectId] = useState(subjects[0].id);
-  const [topicId, setTopicId] = useState<string | null>("t3");
+  const { subjects, loading } = useAtlasData();
+  const [subjectId, setSubjectId] = useState<string | null>(null);
+  const [topicId, setTopicId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (subjects.length > 0 && !subjectId) {
+      setSubjectId(subjects[0].id);
+    }
+  }, [subjects, subjectId]);
+
+  if (loading || !subjectId) {
+    return (
+      <Panel depth="raised" radius="bay" className="p-7">
+        <Micro className="text-ink-3">Loading graph…</Micro>
+      </Panel>
+    );
+  }
 
   /* Reads through the live store, so a confidence change made by the coach
      in Focus Mode is already reflected here. */

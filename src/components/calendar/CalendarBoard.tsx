@@ -6,7 +6,6 @@ import { IconKey } from "@/components/ui/Key";
 import { Groove, Micro, Panel } from "@/components/ui/Panel";
 import { ChevronIcon } from "@/components/ui/Icons";
 import { useAtlasData } from "@/lib/atlas-context";
-import { calendarDays, TODAY } from "@/lib/mock";
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 const MONTHS = [
@@ -20,6 +19,7 @@ const accentVar: Record<string, string> = {
   rust: "var(--color-rust)",
 };
 
+const TODAY = new Date();
 const iso = (y: number, m: number, d: number) =>
   `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 
@@ -37,7 +37,7 @@ function buildWeeks(year: number, month: number) {
 }
 
 export function CalendarBoard() {
-  const { subjects } = useAtlasData();
+  const { subjects, calendarDays } = useAtlasData();
   const [cursor, setCursor] = useState({ year: 2026, month: 6 });
   const weeks = useMemo(() => buildWeeks(cursor.year, cursor.month), [cursor]);
 
@@ -55,11 +55,10 @@ export function CalendarBoard() {
       return { year, month: next };
     });
 
-  const monthDays = Object.entries(calendarDays).filter(([key]) =>
-    key.startsWith(`${cursor.year}-${String(cursor.month + 1).padStart(2, "0")}`),
-  );
+  const monthPrefix = `${cursor.year}-${String(cursor.month + 1).padStart(2, "0")}`;
+  const monthDays = Object.entries(calendarDays).filter(([k]) => k.startsWith(monthPrefix));
   const studied = monthDays.filter(([, v]) => v.state === "complete").length;
-  const minutes = monthDays.reduce((sum, [, v]) => sum + (v.minutes ?? 0), 0);
+  const totalMinutes = monthDays.reduce((s, [, v]) => s + (v.minutes ?? 0), 0);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -129,7 +128,7 @@ export function CalendarBoard() {
           <Groove className="my-4" />
           <dl className="space-y-4">
             <Stat label="Missions completed" value={`${studied}`} />
-            <Stat label="Minutes studied" value={minutes.toLocaleString()} />
+            <Stat label="Minutes studied" value={totalMinutes.toLocaleString()} />
             <Stat label="Completion rate" value={`${Math.round((studied / Math.max(monthDays.length, 1)) * 100)}%`} />
           </dl>
         </Panel>

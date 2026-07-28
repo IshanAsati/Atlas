@@ -2,16 +2,22 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { Subject, Topic, MissionTask } from "@/lib/mock";
-import {
-  subjects as mockSubjects,
-  topics as mockTopics,
-  mission as mockMission,
-  student as mockStudent,
-  calendarDays as mockCalendarDays,
-} from "@/lib/mock";
+
+export interface StudentProfile {
+  id: string;
+  name: string;
+  grade: string;
+  studyTime: number;
+  momentum: number;
+  momentumDelta: number;
+  xp: number;
+  level: number;
+  missionsCompleted: number;
+  missionsAttempted: number;
+}
 
 interface AtlasData {
-  student: typeof mockStudent;
+  student: StudentProfile | null;
   subjects: Subject[];
   topics: Topic[];
   calendarDays: Record<string, { state: "complete" | "partial" | "missed" | "planned"; minutes?: number }>;
@@ -20,23 +26,25 @@ interface AtlasData {
     date: string;
     totalMinutes: number;
     tasks: MissionTask[];
-  };
+  } | null;
   loading: boolean;
   error: string | null;
   refresh: () => void;
   updateTaskStatus: (taskId: string, status: MissionTask["status"]) => void;
+  setCalendarDays: (days: Record<string, { state: "complete" | "partial" | "missed" | "planned"; minutes?: number }>) => void;
 }
 
 const Ctx = createContext<AtlasData>({
-  student: mockStudent,
-  subjects: mockSubjects,
-  topics: mockTopics,
+  student: null,
+  subjects: [],
+  topics: [],
   calendarDays: {},
-  mission: { ...mockMission, tasks: [...mockMission.tasks] },
-  loading: false,
+  mission: null,
+  loading: true,
   error: null,
   refresh: () => {},
   updateTaskStatus: () => {},
+  setCalendarDays: () => {},
 });
 
 export function useAtlasData() {
@@ -62,15 +70,12 @@ export function useAtlasStudent() {
 }
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-  const [student, setStudent] = useState(mockStudent);
-  const [subjects, setSubjects] = useState<Subject[]>(mockSubjects);
-  const [topics, setTopics] = useState<Topic[]>(mockTopics);
-  const [mission, setMission] = useState<AtlasData["mission"]>({
-    ...mockMission,
-    tasks: [...mockMission.tasks],
-  });
-  const [calendarDays, setCalendarDays] = useState<AtlasData["calendarDays"]>(mockCalendarDays);
-  const [loading, setLoading] = useState(false);
+  const [student, setStudent] = useState<StudentProfile | null>(null);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [topics, setTopics] = useState<Topic[]>([]);
+  const [mission, setMission] = useState<AtlasData["mission"] | null>(null);
+  const [calendarDays, setCalendarDays] = useState<AtlasData["calendarDays"]>({});
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const mounted = useRef(true);
 
@@ -85,38 +90,41 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         fetch("/api/mission").then((r) => r.ok ? r.json() : null),
       ]);
 
-      if (mounted.current && studRes?.id) setStudent(studRes);
-      if (mounted.current && subsRes) setSubjects(Array.isArray(subsRes) ? subsRes : mockSubjects);
-      if (mounted.current && topsRes) setTopics(Array.isArray(topsRes) ? topsRes : mockTopics);
-      if (mounted.current && missRes?.tasks) setMission(missRes);
+      if (mounted.current) {
+        if (studRes?.id) setStudent(studRes);
+        if (Array.isArray(subsRes)) setSubjects(subsRes);
+        if (Array.isArray(topsRes)) setTopics(topsRes);
+        if (missRes?.tasks) setMission(missRes);
+      }
     } catch {
-      // Fall back to mock data — already loaded
+      // Network error — leave state as-is (null/empty)
     } finally {
       if (mounted.current) setLoading(false);
     }
   }, []);
 
-  /* Load from API on mount, falling back silently to mock data already set. */
   const inited = useRef(false);
   useEffect(() => {
     if (inited.current) return;
     inited.current = true;
     refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [refresh]);
 
   const updateTaskStatus = useCallback(
     (taskId: string, status: MissionTask["status"]) => {
-      setMission((prev) => ({
-        ...prev,
-        tasks: prev.tasks.map((t) => (t.id === taskId ? { ...t, status } : t)),
-      }));
+      setMission((prev) => {
+        if (!prev) return prev;
+        return { ...prev, tasks: prev.tasks.map((t) => (t.id === taskId ? { ...t, status } : t)) };
+      });
     },
     [],
   );
 
   return (
-    <Ctx.Provider value={{ student, subjects, topics, calendarDays, mission, loading, error, refresh, updateTaskStatus }}>
+    <Ctx.Provider value={{
+      student, subjects, topics, calendarDays, mission,
+      loading, error, refresh, updateTaskStatus, setCalendarDays,
+    }}>
       {children}
     </Ctx.Provider>
   );

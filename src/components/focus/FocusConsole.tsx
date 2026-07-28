@@ -9,8 +9,8 @@ import { IconKey } from "@/components/ui/Key";
 import { Micro, Panel } from "@/components/ui/Panel";
 import { ThemeToggle } from "@/components/shell/ThemeToggle";
 import { CheckIcon, CloseIcon, PauseIcon, PlayIcon, SkipIcon } from "@/components/ui/Icons";
-import { daysUntil, mission, subjects, topics, type MissionTask } from "@/lib/mock";
 import { applyConfidenceDelta } from "@/lib/liveConfidence";
+import type { MissionTask } from "@/lib/mock";
 
 const PRESETS = [
   { label: "15 min", session: 15 * 60, break: 5 * 60 },
@@ -40,12 +40,8 @@ export function FocusConsole() {
       .then((data) => {
         if (cancelled) return;
         if (data?.tasks?.length) setMissionTasks(data.tasks);
-        else setMissionTasks(mission.tasks as MissionTask[]);
       })
-      .catch(() => {
-        if (cancelled) return;
-        setMissionTasks(mission.tasks as MissionTask[]);
-      })
+      .catch(() => {})
       .finally(() => {
         if (!cancelled) setMissionLoaded(true);
       });
@@ -160,8 +156,9 @@ export function FocusConsole() {
           <Micro className="text-ink-3">Loading…</Micro>
         </div>
       ) : !task ? (
-        <div className="mx-auto flex flex-1 items-center justify-center">
-          <Micro className="text-ink-3">No active task</Micro>
+        <div className="mx-auto flex flex-1 flex-col items-center justify-center gap-4 text-center">
+          <Micro className="text-ink-3">No active task. Complete onboarding first.</Micro>
+          <Link href="/onboarding" className="micro text-teal-deep underline">Onboarding</Link>
         </div>
       ) : (
         <>
@@ -217,7 +214,7 @@ export function FocusConsole() {
               </div>
               <div className="mt-2.5 flex justify-between">
                 <Micro>0</Micro>
-                <Micro>{onBreak ? clock(preset.break) : clock(preset.session)}</Micro>
+                <Micro>{onBreak ? clock(breakDuration) : clock(sessionDuration)}</Micro>
               </div>
             </div>
 

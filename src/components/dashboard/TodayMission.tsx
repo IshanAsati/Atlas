@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/cn";
 import { Key } from "@/components/ui/Key";
@@ -18,12 +18,35 @@ const kindLabel: Record<MissionTask["kind"], string> = {
 
 export function TodayMission() {
   const reduce = useReducedMotion();
-  const { mission, student } = useAtlasData();
-  const firstOpen = mission.tasks.find((t) => t.status !== "complete") ?? mission.tasks[0];
-  const [selectedId, setSelectedId] = useState(firstOpen.id);
-  const [queue, setQueue] = useState(mission.tasks);
-  const selected = queue.find((t) => t.id === selectedId) ?? firstOpen;
+  const { mission, student, loading } = useAtlasData();
+  const [queue, setQueue] = useState<MissionTask[]>([]);
+  const [selectedId, setSelectedId] = useState("");
 
+  useEffect(() => {
+    if (mission?.tasks) {
+      setQueue(mission.tasks);
+      const first = mission.tasks.find((t) => t.status !== "complete") ?? mission.tasks[0];
+      if (first && !selectedId) setSelectedId(first.id);
+    }
+  }, [mission, selectedId]);
+
+  if (loading) {
+    return (
+      <Panel depth="raised" radius="bay" className="p-7 sm:p-9">
+        <Micro className="text-ink-3">Loading mission…</Micro>
+      </Panel>
+    );
+  }
+
+  if (!mission || queue.length === 0) {
+    return (
+      <Panel depth="raised" radius="bay" className="p-7 sm:p-9">
+        <Micro className="text-ink-3">No mission yet. Complete onboarding first.</Micro>
+      </Panel>
+    );
+  }
+
+  const selected = queue.find((t) => t.id === selectedId) ?? queue[0];
   const done = queue.filter((t) => t.status === "complete");
   const remaining = queue
     .filter((t) => t.status !== "complete")
@@ -34,21 +57,19 @@ export function TodayMission() {
     if (pending.length < 2) return;
     const nextIdx = pending.findIndex((t) => t.id === selected.id);
     const swapWith = pending[(nextIdx + 1) % pending.length];
-    const reordered = queue.map((t) => {
+    setQueue(queue.map((t) => {
       if (t.id === selected.id) return swapWith;
       if (t.id === swapWith.id) return selected;
       return t;
-    });
-    setQueue(reordered);
+    }));
     setSelectedId(swapWith.id);
   };
 
   return (
     <section className="grid gap-6 lg:grid-cols-[1fr_320px]">
-      {/* The thesis: Atlas has already decided. */}
       <Panel depth="raised" radius="bay" className="overflow-hidden p-7 sm:p-9">
         <div className="flex items-center justify-between gap-4">
-          <Micro>Today · Mon 27 Jul</Micro>
+          <Micro>Today</Micro>
           <Micro className="text-ink-2">
             {done.length}/{queue.length} done
           </Micro>
@@ -58,7 +79,6 @@ export function TodayMission() {
           key={selected.id}
           initial={reduce ? false : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
           className="mt-6"
         >
           <p className="font-display text-[2.6rem] font-semibold leading-[1.02] tracking-[-0.03em] text-ink sm:text-[3.4rem]">
@@ -84,7 +104,6 @@ export function TodayMission() {
           </span>
         </div>
 
-        {/* The rest of the queue, in the order the planner set */}
         <ul className="mt-8 space-y-2.5">
           {queue.map((task, i) => (
             <TaskKey
@@ -98,18 +117,17 @@ export function TodayMission() {
         </ul>
       </Panel>
 
-      {/* Instruments */}
       <div className="flex flex-col gap-6">
         <Panel depth="raised" radius="bay" className="grid place-items-center px-5 py-7">
-          <MomentumDial value={student.momentum} delta={student.momentumDelta} size={244} />
+          <MomentumDial value={student?.momentum ?? 50} delta={student?.momentumDelta ?? 0} size={244} />
           <p className="mt-5 max-w-[15rem] text-center text-[0.8rem] leading-relaxed text-ink-2">
-            You skipped Wednesday. Momentum eased off rather than reset — two sessions puts it back.
+            {student ? "Keep your streak going" : "Loading…"}
           </p>
         </Panel>
 
         <div className="grid grid-cols-2 gap-4">
           <Readout value={`${remaining}`} label="Minutes left" />
-          <Readout value="6" label="Day streak" />
+          <Readout value="0" label="Day streak" />
         </div>
       </div>
     </section>
@@ -136,7 +154,7 @@ function TaskKey({
         aria-pressed={selected}
         className={cn(
           "flex w-full items-center gap-4 rounded-key px-4 py-3.5 text-left",
-          "transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
+          "transition-all duration-200",
           selected
             ? "bg-linear-145 from-base-lo to-base-hi shadow-inset"
             : "bg-linear-145 from-base-hi to-base-lo shadow-raised-sm hover:shadow-raised",
@@ -149,30 +167,17 @@ function TaskKey({
             complete ? "bg-teal text-on-accent" : "shadow-inset text-ink-3",
           )}
         >
-          {complete ? (
-            <CheckIcon width={14} height={14} />
-          ) : (
-            <span className="readout text-[0.6rem] font-semibold">{index + 1}</span>
-          )}
+          {complete ? <CheckIcon width={14} height={14} /> : <span className="readout text-[0.6rem] font-semibold">{index + 1}</span>}
         </span>
-
         <span className="min-w-0 flex-1">
-          <span
-            className={cn(
-              "block truncate text-[0.95rem] font-medium text-ink",
-              complete && "line-through decoration-ink-3/60",
-            )}
-          >
+          <span className={cn("block truncate text-[0.95rem] font-medium text-ink", complete && "line-through")}>
             {task.topic}
           </span>
           <span className="micro mt-1 block text-ink-3">
             {task.subject} · {kindLabel[task.kind]}
           </span>
         </span>
-
-        <span className="readout shrink-0 text-[0.7rem] font-medium text-ink-2">
-          {task.minutes}m
-        </span>
+        <span className="readout shrink-0 text-[0.7rem] font-medium text-ink-2">{task.minutes}m</span>
       </button>
     </li>
   );
