@@ -14,7 +14,6 @@ import {
   DB_ID,
   COLLECTIONS,
 } from "@/lib/appwrite/server";
-import { ID } from "node-appwrite";
 
 import {
   student as mockStudent,
@@ -42,14 +41,20 @@ function clean<T extends Record<string, unknown>>(doc: T): T {
   return { id: $id as string, ...rest } as unknown as T;
 }
 
-function db() {
+async function db() {
   return getDatabases();
+}
+
+async function genId() {
+  const { ID } = await import("node-appwrite");
+  return ID.unique();
 }
 
 async function safeGet<T>(collection: string, id: string): Promise<T | null> {
   if (!process.env.APPWRITE_SECRET_KEY) return null;
   try {
-    const doc = await db().getDocument(DB_ID, collection, id);
+    const d = await db();
+    const doc = await d.getDocument(DB_ID, collection, id);
     return clean(doc as unknown as Record<string, unknown>) as unknown as T;
   } catch {
     return null;
@@ -59,8 +64,9 @@ async function safeGet<T>(collection: string, id: string): Promise<T | null> {
 async function safeList<T>(collection: string, queries: string[] = []): Promise<T[]> {
   if (!process.env.APPWRITE_SECRET_KEY) return [];
   try {
-    const { documents } = await db().listDocuments(DB_ID, collection, queries);
-    return documents.map((d) => clean(d as unknown as Record<string, unknown>)) as unknown as T[];
+    const d = await db();
+    const { documents } = await d.listDocuments(DB_ID, collection, queries);
+    return documents.map((dd: Record<string, unknown>) => clean(dd)) as unknown as T[];
   } catch {
     return [];
   }
@@ -182,14 +188,16 @@ export async function getServerCalendarDays(
 export async function updateTopicConfidence(id: string, confidence: number) {
   if (!process.env.APPWRITE_SECRET_KEY) return;
   try {
-    await db().updateDocument(DB_ID, COLLECTIONS.topics, id, { confidence });
+    const d = await db();
+    await d.updateDocument(DB_ID, COLLECTIONS.topics, id, { confidence });
   } catch { /* silent — client-side override still holds */ }
 }
 
 export async function updateTaskStatus(id: string, status: string) {
   if (!process.env.APPWRITE_SECRET_KEY) return;
   try {
-    await db().updateDocument(DB_ID, COLLECTIONS.missionTasks, id, { status });
+    const d = await db();
+    await d.updateDocument(DB_ID, COLLECTIONS.missionTasks, id, { status });
   } catch { /* silent */ }
 }
 
@@ -198,24 +206,25 @@ export async function saveExtractedSubjects(
   tops: Omit<Topic, "id">[],
 ) {
   if (!process.env.APPWRITE_SECRET_KEY) return;
+  const d = await db();
   // Clear existing
   const existingSubs = await safeList<Subject>(COLLECTIONS.subjects);
   const existingTops = await safeList<Topic>(COLLECTIONS.topics);
   for (const s of existingSubs) {
-    await db().deleteDocument(DB_ID, COLLECTIONS.subjects, s.id);
+    await d.deleteDocument(DB_ID, COLLECTIONS.subjects, s.id);
   }
   for (const t of existingTops) {
-    await db().deleteDocument(DB_ID, COLLECTIONS.topics, t.id);
+    await d.deleteDocument(DB_ID, COLLECTIONS.topics, t.id);
   }
   // Insert new
   for (const s of subs) {
-    await db().createDocument(DB_ID, COLLECTIONS.subjects, ID.unique(), {
+    await d.createDocument(DB_ID, COLLECTIONS.subjects, await genId(), {
       ...s,
       studentId: STUDENT_ID,
     });
   }
   for (const t of tops) {
-    await db().createDocument(DB_ID, COLLECTIONS.topics, ID.unique(), {
+    await d.createDocument(DB_ID, COLLECTIONS.topics, await genId(), {
       ...t,
       studentId: STUDENT_ID,
     });
@@ -228,15 +237,16 @@ export async function saveMission(
   tasks: Omit<MissionTask, "id">[],
 ) {
   if (!process.env.APPWRITE_SECRET_KEY) return;
+  const d = await db();
   const mId = `m-${date}`;
-  try { await db().deleteDocument(DB_ID, COLLECTIONS.missions, mId); } catch {}
-  await db().createDocument(DB_ID, COLLECTIONS.missions, mId, {
+  try { await d.deleteDocument(DB_ID, COLLECTIONS.missions, mId); } catch {}
+  await d.createDocument(DB_ID, COLLECTIONS.missions, mId, {
     studentId: STUDENT_ID,
     date,
     totalMinutes,
   });
   for (const [i, t] of tasks.entries()) {
-    await db().createDocument(DB_ID, COLLECTIONS.missionTasks, ID.unique(), {
+    await d.createDocument(DB_ID, COLLECTIONS.missionTasks, await genId(), {
       ...t,
       missionId: mId,
       order: i,
