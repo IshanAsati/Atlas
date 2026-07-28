@@ -11,6 +11,7 @@ import { ThemeToggle } from "@/components/shell/ThemeToggle";
 import { EmptyBay, Skeleton } from "@/components/ui/States";
 import { CheckIcon, CloseIcon, PauseIcon, PlayIcon, SkipIcon } from "@/components/ui/Icons";
 import { applyConfidenceDelta } from "@/lib/liveConfidence";
+import { useAtlasData } from "@/lib/atlas-context";
 import { useChime } from "@/lib/useChime";
 import type { MissionTask } from "@/lib/mock";
 
@@ -33,23 +34,11 @@ export function FocusConsole() {
   const searchParams = useSearchParams();
   const topicParam = searchParams.get("topic");
 
-  const [missionTasks, setMissionTasks] = useState<MissionTask[]>([]);
-  const [missionLoaded, setMissionLoaded] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/mission")
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
-        if (cancelled) return;
-        if (data?.tasks?.length) setMissionTasks(data.tasks);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setMissionLoaded(true);
-      });
-    return () => { cancelled = true; };
-  }, []);
+  /* Read the shared context rather than fetching separately — two callers
+     racing /api/mission is how the two screens drifted out of step. */
+  const { mission, loading } = useAtlasData();
+  const missionTasks: MissionTask[] = mission?.tasks ?? [];
+  const missionLoaded = !loading;
 
   const task: MissionTask | undefined =
     missionTasks.find((t) => topicParam ? t.topicId === topicParam : t.status === "active") ??

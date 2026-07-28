@@ -14,8 +14,14 @@ export async function GET(request: Request) {
   const date = searchParams.get("date");
 
   try {
-    const mission = await getServerMission(date ?? undefined);
-    return NextResponse.json(mission);
+    const existing = await getServerMission(date ?? undefined);
+    if (existing) return NextResponse.json(existing);
+
+    /* No mission for this day yet. Plan one now rather than showing the
+       student an empty dashboard — this is what makes Atlas work on the
+       second morning, not just the one it was set up on. */
+    const generated = await generateMission(date ?? undefined);
+    return NextResponse.json(generated);
   } catch (error) {
     console.error("[mission] GET error:", error);
     return NextResponse.json({ error: "Failed to load mission." }, { status: 500 });

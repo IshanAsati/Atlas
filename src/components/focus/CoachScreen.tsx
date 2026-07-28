@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Micro } from "@/components/ui/Panel";
@@ -8,7 +8,8 @@ import { ThemeToggle } from "@/components/shell/ThemeToggle";
 import { CoachPanel } from "@/components/focus/CoachPanel";
 import { EmptyBay, Skeleton } from "@/components/ui/States";
 import { CloseIcon } from "@/components/ui/Icons";
-import { daysUntil, mission, subjects, topics, type MissionTask } from "@/lib/mock";
+import { useAtlasData } from "@/lib/atlas-context";
+import { daysUntil, type MissionTask } from "@/lib/mock";
 import type { CoachContext, CoachTurn } from "@/lib/coach/types";
 
 function openingTurnsFor(topic: MissionTask): CoachTurn[] {
@@ -24,32 +25,34 @@ export function CoachScreen() {
   const searchParams = useSearchParams();
   const topicParam = searchParams.get("topic");
 
-  const [missionTasks, setMissionTasks] = useState<MissionTask[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  /* One source of truth: the same context every other screen reads, so the
+     coach knows the student's real confidence rather than a mock default. */
+  const { mission, topics, subjects, loading } = useAtlasData();
+  const loaded = !loading;
+  const missionTasks: MissionTask[] = mission?.tasks ?? [];
 
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/mission")
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
-        if (cancelled) return;
-        if (data?.tasks?.length) setMissionTasks(data.tasks);
-        else setMissionTasks(mission.tasks as MissionTask[]);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setMissionTasks(mission.tasks as MissionTask[]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoaded(true);
-      });
-    return () => { cancelled = true; };
-  }, []);
-
-  const task: MissionTask | undefined =
-    missionTasks.find((t) => topicParam ? t.topicId === topicParam : t.status === "active") ??
-    missionTasks.find((t) => t.status === "active") ??
-    missionTasks[0];
+  /* Any topic can be coached, not only one that's in today's mission —
+     the graph links straight here. */
+  const task: MissionTask | undefined = useMemo(() => {
+    const standalone = topicParam ? topics.find((t) => t.id === topicParam) : undefined;
+    return (
+    missionTasks.find((t) => (topicParam ? t.topicId === topicParam : t.status === "active")) ??
+    (standalone
+      ? {
+          id: `t-${standalone.id}`,
+          topicId: standalone.id,
+          topic: standalone.name,
+          subject: subjects.find((s) => s.id === standalone.subjectId)?.name ?? "",
+          reason: `Confidence is ${standalone.confidence}%.`,
+          minutes: 15,
+          status: "pending",
+          kind: standalone.confidence < 40 ? "learn" : "quiz",
+        }
+      : undefined) ??
+      missionTasks.find((t) => t.status === "active") ??
+      missionTasks[0]
+    );
+  }, [missionTasks, topicParam, topics, subjects]);
 
   const coachContext = useMemo<CoachContext>(() => {
     if (!task) {
@@ -63,9 +66,9 @@ export function CoachScreen() {
       subject: task.subject,
       confidence: topic?.confidence ?? 50,
       lastSeenDays: topic?.lastSeenDays ?? 0,
-      examInDays: subject ? daysUntil(subject.examDate) : 21,
+      examInDays: subject ? daysUntil(subject.examDate, new Date()) : 21,
     };
-  }, [task]);
+  }, [task, topics, subjects]);
 
   /* Derived, not stored: useCoach reads initialTurns once through useState,
      so a value produced by an effect arrives too late to ever be shown. */

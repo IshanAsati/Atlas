@@ -148,8 +148,20 @@ export async function POST(request: Request) {
         }
 
         send({ type: "stage", text: "Saving to your account..." });
-        await saveExtractedSubjects(result.subjects, result.topics ?? []);
+        try {
+          await saveExtractedSubjects(result.subjects, result.topics ?? []);
+        } catch (saveError) {
+          const why = saveError instanceof Error ? saveError.message : "unknown error";
+          console.error("[extract] save failed:", why);
+          send({
+            type: "error",
+            message: `Atlas read your syllabus but couldn't save it. ${why}`,
+          });
+          controller.close();
+          return;
+        }
 
+        send({ type: "stage", text: `Saved ${result.subjects.length} subjects and ${result.topics?.length ?? 0} topics.` });
         send(result);
       } catch (error) {
         const reason = error instanceof Error ? error.message : "unknown error";

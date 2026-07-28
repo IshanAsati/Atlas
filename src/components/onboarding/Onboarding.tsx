@@ -203,6 +203,18 @@ export function Onboarding() {
       // A failed save shouldn't block the student from starting.
     }
 
+    /* Persist the daily budget too, or tomorrow's mission is planned against
+       the 120-minute default instead of what they chose. */
+    try {
+      await fetch("/api/student", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studyTime }),
+      });
+    } catch {
+      // Not worth blocking the student over.
+    }
+
     try {
       const date = new Date().toISOString().slice(0, 10);
       await fetch("/api/mission", {

@@ -16,15 +16,22 @@ async function genId() {
   return ID.unique();
 }
 
+/** Same legacy-query bug as the data layer: Appwrite rejects these strings. */
+async function threadQueries(studentId: string, topicId: string) {
+  const { Query } = await import("node-appwrite");
+  return [Query.equal("studentId", studentId), Query.equal("topicId", topicId)];
+}
+
 export async function loadThread(topicId: string): Promise<CoachTurn[]> {
   if (!process.env.APPWRITE_SECRET_KEY) return [];
   const studentId = (await getSessionUserId()) ?? "student-1";
   const databases = await db();
   try {
-    const { documents } = await databases.listDocuments(DB_ID, COLLECTIONS.coachThreads, [
-      `equal("studentId", "${studentId}")`,
-      `equal("topicId", "${topicId}")`,
-    ]);
+    const { documents } = await databases.listDocuments(
+      DB_ID,
+      COLLECTIONS.coachThreads,
+      await threadQueries(studentId, topicId),
+    );
     if (documents.length === 0) return [];
     const raw = documents[0];
     const turnsJson = raw.turns as string;
@@ -40,10 +47,11 @@ export async function saveThread(topicId: string, turns: CoachTurn[]) {
   const studentId = (await getSessionUserId()) ?? "student-1";
   const databases = await db();
   try {
-    const { documents } = await databases.listDocuments(DB_ID, COLLECTIONS.coachThreads, [
-      `equal("studentId", "${studentId}")`,
-      `equal("topicId", "${topicId}")`,
-    ]);
+    const { documents } = await databases.listDocuments(
+      DB_ID,
+      COLLECTIONS.coachThreads,
+      await threadQueries(studentId, topicId),
+    );
     const payload = {
       studentId,
       topicId,
