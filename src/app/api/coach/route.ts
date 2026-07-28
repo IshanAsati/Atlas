@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { toChatMessages, TOOLS } from "@/lib/coach/prompt";
+import { toChatMessages } from "@/lib/coach/prompt";
 import { offlineReply } from "@/lib/coach/offline";
 import { loadThread, saveThread } from "@/lib/coach/memory";
-import { executeTool } from "@/lib/coach/tools";
 import {
   EMPTY_RESULT,
   SENTINEL,
@@ -20,15 +19,6 @@ const DEEPSEEK_URL = "https://api.deepseek.com/chat/completions";
 const MODEL = process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash";
 const TIMEOUT_MS = 30_000;
 
-/**
- * The coach endpoint. Streams newline-delimited JSON frames.
- *
- * What's new:
- * - Loads the persisted thread from Appwrite so the coach remembers past turns.
- * - Gives DeepSeek tools (query Appwrite, web search, UI actions).
- * - Runs a tool loop: if the model calls tools, executes them and asks again.
- * - Persists the updated thread back to Appwrite.
- */
 export async function POST(request: Request) {
   let body: CoachRequest;
   try {
@@ -56,37 +46,13 @@ export async function POST(request: Request) {
       }
 
       try {
-        // Merge incoming turns with persisted memory
         const memory = await loadThread(body.context.topicId);
-        const mergedTurns = mergeTurns(memory, body.turns);
-        const requestWithMemory: CoachRequest = { ...body, turns: mergedTurns };
+        const turns = mergeTurns(memory, body.turns);
 
-        send({ type: "source", value: "live" });
+        await streamLive({ ...body, turns }, key, send);
 
-        const { finalTurns, usedTools } = await runToolLoop(requestWithMemory, key, send);
-
-        // Persist final thread
-        await saveThread(body.context.topicId, finalTurns);
-
-        if (usedTools) {
-          // Tool loop already streamed everything — just replay the
-          // final coach turn as token frames so the client sees it.
-          const lastCoach = [...finalTurns].reverse().find((t) => t.role === "coach");
-          if (lastCoach) {
-            for (const word of lastCoach.body.split(/(\s+)/)) {
-              if (!word) continue;
-              send({ type: "token", text: word });
-              await new Promise((r) => setTimeout(r, 12));
-            }
-            const result = extractResult(lastCoach.body);
-            send({ type: "result", result });
-          } else {
-            send({ type: "result", result: EMPTY_RESULT });
-          }
-        } else {
-          // No tools used — normal streaming path
-          await streamLive({ ...body, turns: finalTurns }, key, send);
-        }
+        const lastCoach = [...turns, ...body.turns.filter((t) => t.role === "coach")];
+        await saveThread(body.context.topicId, lastCoach);
       } catch (error) {
         const reason = error instanceof Error ? error.message : "unknown error";
         console.error("[coach] live call failed, falling back offline:", reason);
@@ -106,7 +72,6 @@ export async function POST(request: Request) {
   });
 }
 
-/** Merge memory and new turns, avoiding exact duplicate consecutive pairs. */
 function mergeTurns(memory: CoachTurn[], incoming: CoachTurn[]): CoachTurn[] {
   const out = [...memory];
   for (const turn of incoming) {
@@ -115,88 +80,6 @@ function mergeTurns(memory: CoachTurn[], incoming: CoachTurn[]): CoachTurn[] {
     out.push(turn);
   }
   return out;
-}
-
-/** Repeatedly call DeepSeek until it stops calling tools. */
-async function runToolLoop(
-  body: CoachRequest,
-  key: string,
-  send: (frame: CoachFrame) => void,
-  depth = 0,
-): Promise<{ finalTurns: CoachTurn[]; usedTools: boolean }> {
-  if (depth > 3) return { finalTurns: body.turns, usedTools: true };
-
-  const response = await callDeepSeekNonStreaming(body, key);
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    throw new Error(`DeepSeek ${response.status}: ${detail.slice(0, 200)}`);
-  }
-
-  const data = (await response.json()) as {
-    choices?: {
-      message?: {
-        content?: string;
-        tool_calls?: {
-          id: string;
-          function: { name: string; arguments: string };
-        }[];
-      };
-    }[];
-  };
-
-  const message = data.choices?.[0]?.message;
-  const content = message?.content ?? "";
-  const toolCalls = message?.tool_calls ?? [];
-
-  if (toolCalls.length === 0) {
-    // No tools — final answer ready
-    if (content.trim()) {
-      return { finalTurns: [...body.turns, { role: "coach", body: content.trim() }], usedTools: depth > 0 };
-    }
-    return { finalTurns: body.turns, usedTools: depth > 0 };
-  }
-
-  // Append coach turn that issued tool calls
-  const turnsAfterCall: CoachTurn[] = [
-    ...body.turns,
-    { role: "coach", body: content || "Let me check that.", toolCalls: toolCalls.map((t) => ({ id: t.id, function: t.function })) },
-  ];
-
-  // Execute each tool and append tool results as user turns
-  for (const call of toolCalls) {
-    send({ type: "tool_call", call: { id: call.id, function: call.function } });
-    const result = await executeTool({ id: call.id, function: call.function });
-    send({ type: "tool_result", callId: call.id, result: result.result });
-
-    if (result.action) {
-      send({ type: "action", action: result.action });
-    }
-
-    turnsAfterCall.push({
-      role: "student",
-      body: `[tool result for ${call.function.name}]: ${result.result}`,
-    });
-  }
-
-  return runToolLoop({ ...body, turns: turnsAfterCall }, key, send, depth + 1);
-}
-
-async function callDeepSeekNonStreaming(body: CoachRequest, key: string) {
-  return fetch(DEEPSEEK_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${key}`,
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: toChatMessages(body.context, body.turns),
-      tools: TOOLS,
-      temperature: 0.6,
-      max_tokens: 800,
-    }),
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  });
 }
 
 async function streamLive(
@@ -215,7 +98,7 @@ async function streamLive(
       messages: toChatMessages(body.context, body.turns),
       stream: true,
       temperature: 0.6,
-      max_tokens: 800,
+      max_tokens: 600,
     }),
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
@@ -283,7 +166,6 @@ async function streamLive(
   send({ type: "result", result: extractResult(full) });
 }
 
-/** Pull the sentinel line out of the completed response. */
 function extractResult(full: string): CoachResult {
   const at = full.indexOf(SENTINEL);
   if (at === -1) return EMPTY_RESULT;
@@ -300,7 +182,6 @@ function extractResult(full: string): CoachResult {
   }
 }
 
-/** Replay a rule-based answer at a readable pace so the UI behaves identically. */
 async function streamOffline(body: CoachRequest, send: (frame: CoachFrame) => void) {
   const { text, result } = offlineReply(body.context, body.turns);
   send({ type: "source", value: "offline" });
@@ -313,3 +194,4 @@ async function streamOffline(body: CoachRequest, send: (frame: CoachFrame) => vo
 
   send({ type: "result", result });
 }
+

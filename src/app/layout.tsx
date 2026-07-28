@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, Instrument_Sans, Martian_Mono } from "next/font/google";
+import { AuthProvider } from "@/lib/auth/AuthContext";
 import "./globals.css";
 
 /* Display: Bricolage Grotesque. Slightly irregular grotesque with real
@@ -49,7 +50,9 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className="min-h-full">{children}</body>
+      <body className="min-h-full">
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }

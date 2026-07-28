@@ -9,6 +9,8 @@ import { ThemeToggle } from "@/components/shell/ThemeToggle";
 import { ArrowIcon, AtlasMark, CheckIcon, UploadIcon } from "@/components/ui/Icons";
 import { subjects as seedSubjects } from "@/lib/mock";
 import type { Subject } from "@/lib/mock";
+import { useAuth } from "@/lib/auth/AuthContext";
+import { LoginForm } from "@/components/auth/LoginForm";
 
 const STEPS = ["Syllabus", "Confirm", "Time"];
 
@@ -21,6 +23,7 @@ const accentVar: Record<string, string> = {
 };
 
 export function Onboarding() {
+  const { user, loading } = useAuth();
   const reduce = useReducedMotion();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState(0);
@@ -121,6 +124,19 @@ export function Onboarding() {
     const file = e.target.files?.[0];
     if (file) handleFile(file);
   };
+
+  if (loading) return null;
+  if (!user) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center px-5">
+        <span className="mb-8 inline-flex items-center gap-3 text-ink">
+          <AtlasMark size={28} />
+          <span className="font-display text-[1.1rem] font-semibold">Atlas</span>
+        </span>
+        <LoginForm />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-[720px] flex-col px-5 py-8 sm:px-8">
