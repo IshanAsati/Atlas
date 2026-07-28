@@ -9,7 +9,7 @@ import { IconKey } from "@/components/ui/Key";
 import { Micro, Panel } from "@/components/ui/Panel";
 import { ThemeToggle } from "@/components/shell/ThemeToggle";
 import { EmptyBay, Skeleton } from "@/components/ui/States";
-import { CheckIcon, CloseIcon, PauseIcon, PlayIcon, SkipIcon } from "@/components/ui/Icons";
+import { CheckIcon, CloseIcon, CoachIcon, PauseIcon, PlayIcon, SkipIcon } from "@/components/ui/Icons";
 import { applyConfidenceDelta } from "@/lib/liveConfidence";
 import { useAtlasData } from "@/lib/atlas-context";
 import { useChime } from "@/lib/useChime";
@@ -208,10 +208,19 @@ export function FocusConsole() {
               <CloseIcon width={15} height={15} />
               <span className="micro">End session</span>
             </Link>
-            <Link href={`/coach?topic=${task.topicId}`} className="micro text-teal-deep underline underline-offset-4">
-              Talk to AI Coach
-            </Link>
-            <ThemeToggle />
+            {/* Focus and the coach are two modes on one topic, so the switch
+                between them belongs with the other controls — not as a bare
+                link floating in the middle of the header. */}
+            <div className="flex items-center gap-3">
+              <Link
+                href={`/coach?topic=${task.topicId}`}
+                className="inline-flex items-center gap-2.5 rounded-key bg-linear-145 from-base-hi to-base-lo px-4 py-2.5 text-teal-deep shadow-raised transition-all hover:shadow-raised-lg active:shadow-pressed"
+              >
+                <CoachIcon width={15} height={15} />
+                <span className="micro">Ask the coach</span>
+              </Link>
+              <ThemeToggle />
+            </div>
           </header>
 
           <div className="mx-auto flex w-full max-w-[560px] flex-1 flex-col items-center justify-center text-center">

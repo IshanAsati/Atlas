@@ -7,7 +7,7 @@ import { Micro } from "@/components/ui/Panel";
 import { ThemeToggle } from "@/components/shell/ThemeToggle";
 import { CoachPanel } from "@/components/focus/CoachPanel";
 import { EmptyBay, Skeleton } from "@/components/ui/States";
-import { CloseIcon } from "@/components/ui/Icons";
+import { CloseIcon, LearnIcon } from "@/components/ui/Icons";
 import { useAtlasData } from "@/lib/atlas-context";
 import { daysUntil, type MissionTask } from "@/lib/mock";
 import type { CoachContext, CoachTurn } from "@/lib/coach/types";
@@ -116,14 +116,21 @@ export function CoachScreen() {
           <CloseIcon width={15} height={15} />
           <span className="micro">Back to Dashboard</span>
         </Link>
-        <div className="text-center">
-          <Micro>AI Coach · {task.subject}</Micro>
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/focus?topic=${task.topicId}`}
+            className="inline-flex items-center gap-2.5 rounded-key bg-linear-145 from-base-hi to-base-lo px-4 py-2.5 text-teal-deep shadow-raised transition-all hover:shadow-raised-lg active:shadow-pressed"
+          >
+            <LearnIcon width={15} height={15} />
+            <span className="micro">Start a session</span>
+          </Link>
+          <ThemeToggle />
         </div>
-        <ThemeToggle />
       </header>
 
       <div className="mx-auto flex w-full max-w-[720px] flex-1 flex-col justify-center py-8">
-        <h1 className="font-display text-[2.2rem] font-semibold tracking-[-0.025em] text-ink sm:text-[2.75rem]">
+        <Micro className="text-ink-3">{task.subject}</Micro>
+        <h1 className="mt-3 font-display text-[2.2rem] font-semibold tracking-[-0.025em] text-ink sm:text-[2.75rem]">
           {task.topic}
         </h1>
         <p className="mt-2 text-[0.95rem] leading-relaxed text-ink-2">
@@ -134,12 +141,6 @@ export function CoachScreen() {
           <CoachPanel key={task.id} context={coachContext} initialTurns={initialTurns} />
         </div>
 
-        <Link
-          href={`/focus?topic=${task.topicId}`}
-          className="micro mt-6 text-center text-ink-3 underline underline-offset-4 hover:text-ink-2"
-        >
-          Start a focused Pomodoro session instead
-        </Link>
       </div>
     </div>
   );
