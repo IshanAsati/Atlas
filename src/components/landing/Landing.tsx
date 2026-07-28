@@ -1,12 +1,13 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import {
   motion,
   useReducedMotion,
   useMotionValue,
   useScroll,
+  useSpring,
   useTransform,
   type MotionValue,
 } from "framer-motion";
@@ -25,6 +26,7 @@ import { ThemeToggle } from "@/components/shell/ThemeToggle";
 export function Landing() {
   return (
     <div className="relative isolate">
+      <PointerLean />
       <TopBar />
       <Hero />
       <CoachScrollytell />
@@ -36,16 +38,65 @@ export function Landing() {
   );
 }
 
+/**
+ * The whole sheet leans very slightly toward the pointer.
+ *
+ * Two variables, read by the ambient wash below and by nothing else — the
+ * text never moves, so nothing is ever harder to read. Spring-damped and
+ * measured in a handful of pixels: the page should feel alive, not restless.
+ */
+function PointerLean() {
+  const reduce = useReducedMotion();
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+  const sx = useSpring(x, { stiffness: 40, damping: 22, mass: 0.9 });
+  const sy = useSpring(y, { stiffness: 40, damping: 22, mass: 0.9 });
+
+  const glowX = useTransform(sx, (v) => `${50 + v * 14}%`);
+  const glowY = useTransform(sy, (v) => `${28 + v * 10}%`);
+
+  useEffect(() => {
+    if (reduce) return;
+    const onMove = (e: PointerEvent) => {
+      x.set((e.clientX / window.innerWidth) * 2 - 1);
+      y.set((e.clientY / window.innerHeight) * 2 - 1);
+    };
+    window.addEventListener("pointermove", onMove, { passive: true });
+    return () => window.removeEventListener("pointermove", onMove);
+  }, [reduce, x, y]);
+
+  /* Every hook runs before the early return. */
+  const background = useTransform(
+    [glowX, glowY],
+    ([gx, gy]: string[]) =>
+      `radial-gradient(60rem 45rem at ${gx} ${gy}, color-mix(in srgb, var(--teal) 9%, transparent), transparent 70%)`,
+  );
+
+  if (reduce) return null;
+
+  return (
+    <motion.div
+      aria-hidden
+      className="pointer-events-none fixed inset-0 -z-10"
+      style={{ background }}
+    />
+  );
+}
+
 /* ------------------------------------------------------------------ */
 
 function TopBar() {
   return (
-    <header className="sticky top-0 z-40 backdrop-blur-sm">
+    /* A sticky bar over scrolling content needs its own surface, or the mark
+       and wordmark sit on whatever happens to pass beneath them. */
+    <header className="sticky top-0 z-40 bg-base/85 backdrop-blur-md">
       <div className="mx-auto flex w-full max-w-[1100px] items-center justify-between gap-4 px-5 py-4 sm:px-8">
-        <span className="inline-flex items-center gap-2.5 text-ink">
-          <AtlasMark size={22} />
-          <span className="font-display text-base font-semibold tracking-[-0.01em]">Atlas</span>
-        </span>
+        <Link href="/welcome" className="inline-flex items-center gap-2.5">
+          <AtlasMark size={22} className="text-teal" />
+          <span className="font-display text-base font-semibold tracking-[-0.01em] text-ink">
+            Atlas
+          </span>
+        </Link>
         <div className="flex items-center gap-3">
           <ThemeToggle />
           <Link
@@ -56,6 +107,7 @@ function TopBar() {
           </Link>
         </div>
       </div>
+      <Groove />
     </header>
   );
 }

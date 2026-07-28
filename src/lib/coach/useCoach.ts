@@ -2,6 +2,13 @@
 
 import { useCallback, useRef, useState } from "react";
 import { applyConfidenceDelta, useTopicConfidence } from "@/lib/liveConfidence";
+import { SENTINEL } from "./types";
+/** Cut the machine-readable tail off a reply. */
+function stripSentinel(text: string): string {
+  const at = text.indexOf(SENTINEL);
+  return at === -1 ? text : text.slice(0, at);
+}
+
 import type {
   CoachAction,
   CoachContext,
@@ -104,7 +111,10 @@ export function useCoach({ context, initialTurns = [], initialQuestion = null }:
             } else if (frame.type === "token") {
               reply += frame.text;
               setStatus("streaming");
-              setStreamed(reply);
+              /* Belt and braces: the sentinel and everything after it is for
+                 the machine. If a server path ever forgets to strip it, it
+                 still never reaches the screen. */
+              setStreamed(stripSentinel(reply));
             } else if (frame.type === "tool_call") {
               setStatus("thinking");
             } else if (frame.type === "action") {
@@ -125,7 +135,7 @@ export function useCoach({ context, initialTurns = [], initialQuestion = null }:
           }
         }
 
-        const finalBody = reply.trim();
+        const finalBody = stripSentinel(reply).trim();
         if (!finalBody) throw new Error("The coach sent an empty reply.");
 
         setTurns([...nextTurns, { role: "coach", body: finalBody, misconception }]);

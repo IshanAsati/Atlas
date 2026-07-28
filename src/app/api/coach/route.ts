@@ -128,15 +128,21 @@ async function runToolLoop(
   const toolCalls = message?.tool_calls ?? [];
 
   if (toolCalls.length === 0) {
-    // Final answer — stream it token by token
-    for (const word of content.split(/(\s+)/)) {
+    /* Everything from the sentinel on is machine-readable and must never be
+       shown. This path streamed the whole response, so the student saw the
+       raw <<<ATLAS>>>{"misconception":…} block printed under the reply. */
+    const at = content.indexOf(SENTINEL);
+    const prose = (at === -1 ? content : content.slice(0, at)).trim();
+
+    for (const word of prose.split(/(\s+)/)) {
       if (!word) continue;
       send({ type: "token", text: word });
       await new Promise((r) => setTimeout(r, 12));
     }
+
     const result = extractResult(content);
     send({ type: "result", result });
-    return [...body.turns, { role: "coach", body: content }];
+    return [...body.turns, { role: "coach", body: prose }];
   }
 
   // Execute each tool and append results as tool role (not user role)

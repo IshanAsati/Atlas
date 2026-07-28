@@ -72,35 +72,38 @@
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --surface: #1e2320;
-  --surface-hi: #2a302c;
-  --surface-lo: #161a17;
-  --emboss: #3d453f;
-  --relief: #0c0f0d;
+  /* Deeper than the first pass, which sat around #1e2320 and read as warm
+     grey rather than night. The hue is kept — it is the same concrete, lit
+     by much less light — so the teal and amber still belong to it. */
+  --surface: #12100f;
+  --surface-hi: #1b1f1c;
+  --surface-lo: #0c0f0d;
+  --emboss: #2c332e;
+  --relief: #050706;
 
-  --groove: #171c19;
-  --groove-hatch: #222724;
-  --hairline: #121613;
-  --tick: #3d453f;
-  --tick-strong: #6b756d;
+  --groove: #0b0e0c;
+  --groove-hatch: #161a17;
+  --hairline: #090c0a;
+  --tick: #333b36;
+  --tick-strong: #5f6a62;
 
-  --ink: #eef2ee;
-  --ink-2: #9aa39c;
-  --ink-3: #6b756d;
-  --on-accent: #0f1311;
+  --ink: #f1f5f1;
+  --ink-2: #98a29a;
+  --ink-3: #66706a;
+  --on-accent: #0a0d0b;
 
-  --teal: #2bcdb6;
-  --teal-deep: #6ee6d4;
-  --teal-wash: #1a2e2b;
-  --amber: #e8993f;
-  --amber-deep: #f5c46a;
-  --amber-wash: #2d2318;
-  --rust: #d4644c;
-  --rust-wash: #2e1d19;
+  --teal: #2ad4bb;
+  --teal-deep: #74ecd9;
+  --teal-wash: #10241f;
+  --amber: #eb9d3f;
+  --amber-deep: #f7c86d;
+  --amber-wash: #241b11;
+  --rust: #d96a50;
+  --rust-wash: #241512;
 
-  --page: linear-gradient(148deg, #2a302c 0%, #1e2320 45%, #161a17 100%);
-  --grain: 0.05;
-  --needle-shadow: rgba(0, 0, 0, 0.6);
+  --page: linear-gradient(148deg, #191d1a 0%, #12100f 46%, #0a0c0b 100%);
+  --grain: 0.055;
+  --needle-shadow: rgba(0, 0, 0, 0.7);
 
   --sh-raised-sm: 2px 2px 5px var(--relief), -2px -2px 5px var(--emboss);
   --sh-raised: 6px 6px 13px var(--relief), -5px -5px 12px var(--emboss);
