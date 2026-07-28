@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Automatic source detection missed newly added directories, so classes used
+   only in a new folder were silently never generated — the markup carried the
+   class and no rule existed. Name the tree explicitly. */
+@source "../../src/**/*.{ts,tsx}";
+
 /* Dark is driven by an attribute on <html>, not by the media query alone,
    so the toggle can override the system preference. */
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));

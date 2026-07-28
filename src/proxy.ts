@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PUBLIC_ROUTES = ["/onboarding", "/api/auth"];
+const PUBLIC_ROUTES = ["/welcome", "/onboarding", "/api/auth"];
 
 function verifyCookie(cookieValue: string): boolean {
   try {
@@ -37,7 +37,9 @@ export default async function proxy(request: NextRequest) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Sign in to continue." }, { status: 401 });
     }
-    const response = NextResponse.redirect(new URL("/onboarding", request.url));
+    /* Signed out, the first thing you should meet is what Atlas is — not a
+       login form. The landing page carries on to onboarding. */
+    const response = NextResponse.redirect(new URL("/welcome", request.url));
     response.cookies.delete("atlas-session");
     return response;
   }
