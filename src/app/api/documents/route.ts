@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { denyIfSignedOut } from "@/lib/auth/guard";
 import { deleteSyllabus, getServerSubjects, getServerTopics } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,9 @@ export interface SyllabusDocument {
 
 /** GET /api/documents → the syllabus, one row per subject. */
 export async function GET() {
+  const denied = await denyIfSignedOut();
+  if (denied) return denied;
+
   try {
     const [subjects, topics] = await Promise.all([getServerSubjects(), getServerTopics()]);
 
@@ -55,6 +59,9 @@ export async function GET() {
  * dropped by enough proxies that it isn't worth the ambiguity.
  */
 export async function DELETE(request: Request) {
+  const denied = await denyIfSignedOut();
+  if (denied) return denied;
+
   const subjectId = new URL(request.url).searchParams.get("subjectId") ?? undefined;
 
   try {

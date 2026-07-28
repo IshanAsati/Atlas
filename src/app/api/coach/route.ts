@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { denyIfSignedOut } from "@/lib/auth/guard";
 import { toChatMessages, TOOLS } from "@/lib/coach/prompt";
 import { offlineReply } from "@/lib/coach/offline";
 import { loadThread, saveThread } from "@/lib/coach/memory";
@@ -21,6 +22,9 @@ const MODEL = process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash";
 const TIMEOUT_MS = 30_000;
 
 export async function POST(request: Request) {
+  const denied = await denyIfSignedOut();
+  if (denied) return denied;
+
   let body: CoachRequest;
   try {
     body = (await request.json()) as CoachRequest;

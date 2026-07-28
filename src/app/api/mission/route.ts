@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { denyIfSignedOut } from "@/lib/auth/guard";
 import { getServerMission, generateMission, updateTaskStatus } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,9 @@ export const maxDuration = 30;
  * PATCH /api/mission/tasks/:id        → update task status
  */
 export async function GET(request: Request) {
+  const denied = await denyIfSignedOut();
+  if (denied) return denied;
+
   const { searchParams } = new URL(request.url);
   const date = searchParams.get("date");
 
@@ -29,6 +33,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const denied = await denyIfSignedOut();
+  if (denied) return denied;
+
   try {
     const body = await request.json().catch(() => ({}));
     const date = body.date ?? new Date().toISOString().slice(0, 10);
@@ -42,6 +49,9 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const denied = await denyIfSignedOut();
+  if (denied) return denied;
+
   const { pathname } = new URL(request.url);
   const taskId = pathname.split("/").pop();
 

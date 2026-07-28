@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { denyIfSignedOut } from "@/lib/auth/guard";
 import { getServerStudent, getServerSubjects, getServerTopics, getServerCalendarDays } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
@@ -65,6 +66,9 @@ function getWeekDays(): { day: string; date: string }[] {
 }
 
 export async function GET() {
+  const denied = await denyIfSignedOut();
+  if (denied) return denied;
+
   try {
     const student = await getServerStudent();
     const subjects = await getServerSubjects();

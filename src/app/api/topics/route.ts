@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { denyIfSignedOut } from "@/lib/auth/guard";
 import { getServerTopics, getServerSubjects, updateTopicConfidence } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +10,9 @@ export const dynamic = "force-dynamic";
  * PATCH /api/topics/:id           → update a topic's confidence
  */
 export async function GET(request: Request) {
+  const denied = await denyIfSignedOut();
+  if (denied) return denied;
+
   const { searchParams } = new URL(request.url);
   const subjectId = searchParams.get("subjectId") ?? undefined;
   const type = searchParams.get("type");
@@ -27,6 +31,9 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const denied = await denyIfSignedOut();
+  if (denied) return denied;
+
   try {
     const body = await request.json();
     const { topicId, confidence } = body;

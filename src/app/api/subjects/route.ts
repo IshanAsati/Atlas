@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { denyIfSignedOut } from "@/lib/auth/guard";
 import { getServerSubjects, saveExtractedSubjects, updateSubjectExamDate } from "@/lib/data";
 import { subjects as seedSubjects, topics as seedTopics } from "@/lib/mock";
 
@@ -11,6 +12,9 @@ export const dynamic = "force-dynamic";
  * been told setup succeeded.
  */
 export async function POST(request: Request) {
+  const denied = await denyIfSignedOut();
+  if (denied) return denied;
+
   try {
     const body = (await request.json()) as { sample?: boolean };
     if (!body?.sample) {
@@ -49,6 +53,9 @@ export async function POST(request: Request) {
  * and tomorrow's mission is planned against the extracted date instead.
  */
 export async function GET() {
+  const denied = await denyIfSignedOut();
+  if (denied) return denied;
+
   try {
     return NextResponse.json(await getServerSubjects());
   } catch (error) {
@@ -58,6 +65,9 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
+  const denied = await denyIfSignedOut();
+  if (denied) return denied;
+
   try {
     const body = (await request.json()) as { dates?: Record<string, string> };
     const dates = body?.dates;

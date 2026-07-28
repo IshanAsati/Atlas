@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
+import { denyIfSignedOut } from "@/lib/auth/guard";
 import { calcMomentum, getAllCalendarDays, getServerStudent, updateStudentProfile } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const denied = await denyIfSignedOut();
+  if (denied) return denied;
+
   try {
     const student = await getServerStudent();
     if (!student) return NextResponse.json(null);
@@ -27,6 +31,9 @@ export async function GET() {
  * default. This is where it persists.
  */
 export async function PATCH(request: Request) {
+  const denied = await denyIfSignedOut();
+  if (denied) return denied;
+
   try {
     const body = (await request.json()) as {
       name?: string;

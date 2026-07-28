@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { denyIfSignedOut } from "@/lib/auth/guard";
 import { extractionPrompt } from "@/lib/extract/prompt";
 import { saveExtractedSubjects } from "@/lib/data";
 import { extractPdfText, looksLikeProse } from "@/lib/extract/pdf-text";
@@ -23,6 +24,9 @@ interface ExtractionFrame {
 }
 
 export async function POST(request: Request) {
+  const denied = await denyIfSignedOut();
+  if (denied) return denied;
+
   let formData: FormData;
   try {
     formData = await request.formData();

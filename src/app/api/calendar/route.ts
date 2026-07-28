@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { denyIfSignedOut } from "@/lib/auth/guard";
 import { generateSchedule, getAllCalendarDays, logStudyMinutes } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,9 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
  * plan is always worked out from today, so `from`/`to` only clip it.
  */
 export async function GET(request: Request) {
+  const denied = await denyIfSignedOut();
+  if (denied) return denied;
+
   const { searchParams } = new URL(request.url);
 
   /* ?days=1 returns what has actually been studied, rather than the plan. */
@@ -53,6 +57,9 @@ export async function GET(request: Request) {
  * momentum. Minutes sum, so several sessions in a day add up.
  */
 export async function PATCH(request: Request) {
+  const denied = await denyIfSignedOut();
+  if (denied) return denied;
+
   try {
     const body = (await request.json()) as { date?: string; minutes?: number };
     const date = body.date ?? new Date().toISOString().slice(0, 10);

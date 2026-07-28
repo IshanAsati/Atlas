@@ -31,6 +31,12 @@ export default async function proxy(request: NextRequest) {
 
   const cookie = request.cookies.get("atlas-session");
   if (!cookie?.value || !verifyCookie(cookie.value)) {
+    /* An API call gets a status it can act on. Redirecting it to an HTML
+       page made every unauthenticated request look like a JSON parse error
+       instead of an expired session. */
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Sign in to continue." }, { status: 401 });
+    }
     const response = NextResponse.redirect(new URL("/onboarding", request.url));
     response.cookies.delete("atlas-session");
     return response;

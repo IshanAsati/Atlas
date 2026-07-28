@@ -81,60 +81,48 @@ only. Check in DevTools device mode before the demo.
 
 ---
 
-## HANDOVER — 28 July, late. Read this first.
+## HANDOVER — 29 July
 
-Build, `npx tsc --noEmit` and `npm run lint` are all clean (11 warnings, 0
-errors). Everything below is committed except where marked UNCOMMITTED.
+Build, `npx tsc --noEmit` and `npm run lint` are all clean: **0 errors, 0
+warnings**. Everything is committed and pushed.
 
-### Fixed since the last pass
+### Closed in this pass
 
-| Was broken | Fix |
+| Was | Now |
 |---|---|
-| Every Appwrite read returned nothing | The data layer sent legacy `equal("f","v")` query strings; the SDK builds them as JSON, so the server rejected all of them and `safeList` swallowed it. Now `Query.equal(...)`. **This was the cause of every empty screen.** |
-| Reads capped at 25 rows | Appwrite's default page size. Explicit `Query.limit(500)`. |
-| No topic belonged to any subject | Topics were saved against the extractor's temporary `s1`/`s2` ids while subjects got Appwrite's. Now mapped. |
-| PDFs never read | `pdf-parse` v2 is a class, not a callable; and pdf.js can't find its worker on Vercel. Replaced with a zero-dependency reader, `src/lib/extract/pdf-text.ts`, that inflates content streams with `node:zlib` and decodes subset fonts via `/ToUnicode` (see `pdf-fonts.ts`, `pdf-objects.ts`). pdf.js is now only a fallback. |
-| "Exam is 30 days away" for a date set to tomorrow | Two faults: `daysUntil` defaulted to the frozen demo date, and the client renumbered subjects `s1…` so `PATCH /api/subjects` updated records that don't exist. Both fixed. |
-| Focus/Coach stuck on a skeleton | `DataProvider` was mounted inside `(shell)`, but those routes live outside it. Both providers now sit in the root layout. |
-| New accounts had no profile | Registration never created a `students` document. `getServerStudent` creates it on demand. |
-| One-task missions | The planner skipped every zero-confidence topic after the first — which is all of them on a new syllabus. |
-| Same file twice did nothing | The file input's value wasn't cleared, so no change event fired. |
+| Nothing a student did reached the calendar | `logStudyMinutes()` + `PATCH /api/calendar`. FocusConsole logs every finished session, so the day streak and momentum move. |
+| The calendar was never even fetched | `DataProvider` fetches `GET /api/calendar?days=1`. `calendarDays` was permanently `{}`, which is why the streak read 0 and the grid was blank. |
+| Momentum was a seed value nothing updated | `calcMomentum()` scores a rolling 14 days against the student's own target; `GET /api/student` applies it on every fetch. |
+| "At 120 minutes a day … four papers … 14 Aug" | Computed from the extracted subjects, their real dates and today. Says something different when a paper is close, or when the day's budget can't cover the syllabus. |
+| No chat on the first screen — in a chatbot competition | `CoachDock` sits in the dashboard grid, opening on today's topic. Not a floating bubble. |
+| API routes returned empty data when signed out | `denyIfSignedOut()` on every data route, and the proxy now returns 401 for `/api/*` instead of redirecting an API call to an HTML page. |
+| OCR progress invisible | The scan drives the first stage's share of the progress bar. It used to sit frozen at 0% for the whole scan. |
 
-### UNCOMMITTED work in the tree — finish or revert
+Earlier the same day: the Appwrite query-syntax bug (every read returned
+nothing), the dangling `subjectId` on saved topics, the zero-dependency PDF
+reader with subset-font decoding, both exam-date faults, and the provider
+being mounted inside `(shell)` so Focus and Coach hung on a skeleton.
 
-Four agents were interrupted mid-task by a spend limit. What survived:
+### Not done — deliberately
 
-**Settings — looks complete, NOT TESTED IN A BROWSER.**
-`src/app/(shell)/settings/page.tsx`, `src/components/settings/*` (5 files),
-`src/app/api/documents/route.ts`, `deleteSyllabus()` appended to `data.ts`,
-and a `/settings` link on the rail avatar. Verify: details save, logout works,
-syllabus replace and remove work.
+- **Coach UI redesign** (a wider ChatGPT-style conversation column). The dock
+  and the existing panel both work; this is polish, and it is the kind of
+  change that breaks a working screen the morning of a demo.
+- **Web search for the coach** (#2) — needs a third API key.
+- **Push notifications** (#13) — a permission prompt mid-demo is a liability.
+- **WebSocket sync** (#19), **error tracking** (#21), **cross-topic coach
+  memory** (#1) — real work, no demo value today.
+- **SM-2 spaced repetition** (#10). `nextReview` is stored but never
+  recalculated. The revision queue sorts by confidence instead, which is a
+  reasonable proxy — but don't claim spaced repetition to a judge.
 
-**Calendar — wired by me, NOT TESTED IN A BROWSER.**
-`DayDetail.tsx` + `generateSchedule()` in `data.ts` + `/api/calendar` were
-written by the agent; I connected them to `CalendarBoard` (day cells are now
-selectable, detail panel renders, planned days get a pip). Verify the schedule
-actually distributes topics across days before each exam.
+### Still worth knowing
 
-**OCR — ✅ done.**
-`Onboarding.tsx` calls `ocrImage()` for images, sends text to `/api/extract`,
-handles progress via `ocrPercent`, errors on low chars. File input accepts
-`.pdf,.png,.jpg,.jpeg,.webp`.
-
-### Not started
-
-- **Coach UI redesign** (ChatGPT/Claude-style column) and **coach on the
-  dashboard**. That agent died before writing anything. Files it was to own:
-  `CoachPanel.tsx`, `CoachScreen.tsx`, a new `CoachDock.tsx`, `(shell)/page.tsx`.
-- The hardcoded onboarding line *"At 120 minutes a day, Atlas can cover all
-  four papers before the first exam on 14 Aug…"* — still static, in
-  `Onboarding.tsx` step 3. Should compute from the real subjects and today.
-
-### Biggest remaining risk
-
-`/progress` API is live and computing real data. The page fetches from `/api/progress` — no mock data shows. This was the most critical screen for the demo and is now done.
-
-Accounts created before the query fix hold orphaned records. Sign up fresh rather than trying to repair one.
+- **Mobile is only partly verified.** The bottom dock and dashboard were seen
+  at ~960px and hold up. Nothing has been checked at 375px.
+- Accounts created before the query fix hold orphaned records. Sign up fresh.
+- `scripts/seed-demo.mjs` still exists for a known-good demo account.
+- The deck is `docs/Atlas-MINDBOT.pptx`; `node docs/deck.js` regenerates it.
 
 ---
 
@@ -158,7 +146,7 @@ The extraction endpoint (`/api/extract`) is fully built — accepts a PDF, extra
 
 **What it needs:** Download a CBSE Class 10 syllabus PDF for any subject. Upload it through the onboarding screen. Watch the streamed stages in the dev tools. If the result looks wrong (wrong subjects, missing topics, wrong dates), tune the `extractionPrompt` in `src/lib/extract/prompt.ts` and the parsing logic. The prompt currently asks for JSON with `{subjects: [{name, discipline, examDate, topics: [{name}]}]}`. DeepSeek may wrap this in markdown code blocks or add commentary — the parser needs to handle that.
 
-### 5. Auth is not enforced on API routes — ⚠️ partially done
+### 5. Auth on API routes — ✅ done
 The proxy middleware checks the session cookie for page navigations, but API routes (`GET /api/mission`, `POST /api/coach`, etc.) aren't individually protected. Data layer returns `null`/`[]` without a session (no mock fallback).
 
 **What it needs:** Each API route should call `verifySession()` and return `401 { error: "Unauthorized" }` when no valid session is found.
@@ -169,7 +157,7 @@ The proxy middleware checks the session cookie for page navigations, but API rou
 ### 7. Day streak — ✅ done
 `calcStreak()` in `src/lib/stats.ts` counts consecutive study days from calendar data. Wired into the dashboard.
 
-### 8. Momentum — ⚠️ partially done
+### 8. Momentum — ✅ done
 `GET /api/progress` computes 14-day momentum history from calendar data. `student.momentum`/`student.momentumDelta` still seed values on the profile.
 
 **What it needs:** Move `calcMomentum()` into the student profile endpoint so momentum updates on every fetch.
@@ -185,7 +173,7 @@ The dashboard's `RevisionQueue` shows topics in a fixed order. It doesn't apply 
 ### 11. Mission generation uses study time — ✅ done
 Study time is persisted via `PATCH /api/student` during onboarding before mission generation. Planner reads the authoritative value.
 
-### 12. Calendar doesn't save study data from Pomodoro sessions
+### 12. Calendar saves study data from Pomodoro sessions — ✅ done
 When a Pomodoro session completes (all repetitions done or the student marks time), there's no record saved. The calendar stays on seed data. The `calendar_days` collection should get a daily document created or updated with minutes studied, and the day's state (complete if target met, partial if not).
 
 **What it needs:** After a focus session ends, send `PATCH /api/calendar` with the date and minutes studied. Create `src/app/api/calendar/route.ts`. The endpoint upserts a document in `calendar_days` for that user+date, summing minutes and setting state based on whether the total meets the student's daily study target.
@@ -209,7 +197,7 @@ After logging in, a returning user is always sent to `/onboarding` (the proxy re
 
 **What it needs:** Add an `onboarded: boolean` field to the `students` collection (default false). Set it to `true` when the user completes the Time step. The proxy should check this field (via `GET /api/auth/me` or by reading the student profile) and redirect onboarded users to `/` instead of `/onboarding`.
 
-### 18. No daily mission auto-regeneration
+### 18. Daily mission auto-regeneration — ✅ done (GET /api/mission plans one if the day has none)
 The mission is generated once during onboarding and never refreshed. If the student finishes all tasks, the dashboard shows "No mission yet." There should be a mechanism to regenerate tomorrow's mission each day, and to generate a fresh mission if today's is fully done.
 
 **What it needs:** A `cron` job (or a check in the `GET /api/mission` handler) that auto-generates a mission for today if none exists and today's date is >= last generated date. The mission planner already handles this pattern — `getServerMission()` can call `generateMission()` if no mission exists for the requested date. Wire this so the data layer creates missions on-demand.
