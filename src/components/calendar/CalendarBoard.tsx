@@ -79,7 +79,7 @@ export function CalendarBoard() {
 
         <Groove className="my-6" />
 
-        <div className="mx-auto grid max-w-[600px] grid-cols-7 gap-2 sm:gap-2.5">
+        <div className="mx-auto grid max-w-[600px] grid-cols-7 gap-1.5 sm:gap-2.5">
           {WEEKDAYS.map((d, i) => (
             <div key={i} className="pb-2 text-center">
               <Micro>{d}</Micro>
@@ -190,7 +190,7 @@ function DayCell({
     <div
       title={title}
       className={cn(
-        "group relative flex aspect-square flex-col items-center justify-center gap-1 rounded-key",
+        "group relative flex aspect-square min-w-0 flex-col items-center justify-center gap-1 rounded-key",
         "transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
         state === "missed"
           ? "bg-linear-145 from-base-lo to-base-hi shadow-inset"

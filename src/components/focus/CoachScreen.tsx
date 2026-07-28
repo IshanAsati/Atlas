@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { IconKey } from "@/components/ui/Key";
 import { Micro } from "@/components/ui/Panel";
 import { ThemeToggle } from "@/components/shell/ThemeToggle";
 import { CoachPanel } from "@/components/focus/CoachPanel";
-import { CloseIcon, CoachIcon } from "@/components/ui/Icons";
+import { EmptyBay, Skeleton } from "@/components/ui/States";
+import { CloseIcon } from "@/components/ui/Icons";
 import { daysUntil, mission, subjects, topics, type MissionTask } from "@/lib/mock";
 import type { CoachContext, CoachTurn } from "@/lib/coach/types";
 
@@ -22,7 +21,6 @@ function openingTurnsFor(topic: MissionTask): CoachTurn[] {
 }
 
 export function CoachScreen() {
-  const reduce = useReducedMotion();
   const searchParams = useSearchParams();
   const topicParam = searchParams.get("topic");
 
@@ -69,28 +67,36 @@ export function CoachScreen() {
     };
   }, [task]);
 
-  const [initialTurns, setInitialTurns] = useState<CoachTurn[]>([]);
-  const prevTaskId = useRef<string | null>(null);
-  useEffect(() => {
-    if (task && prevTaskId.current !== task.id) {
-      prevTaskId.current = task.id;
-      setInitialTurns(openingTurnsFor(task));
-    }
-  }, [task]);
+  /* Derived, not stored: useCoach reads initialTurns once through useState,
+     so a value produced by an effect arrives too late to ever be shown. */
+  const initialTurns = useMemo<CoachTurn[]>(
+    () => (task ? openingTurnsFor(task) : []),
+    [task],
+  );
 
   if (!loaded) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Micro className="text-ink-3">Loading…</Micro>
+      <div className="mx-auto flex min-h-screen w-full max-w-[720px] flex-col justify-center gap-6 px-5 py-6 sm:px-8">
+        <Skeleton className="h-3 w-24" />
+        <Skeleton className="h-10 w-[60%]" delay={0.1} />
+        <Skeleton className="h-3 w-[80%]" delay={0.18} />
+        <Skeleton radius="rounded-bay" className="h-[420px] w-full" delay={0.26} />
+        <span className="sr-only">Loading your coaching session</span>
       </div>
     );
   }
 
   if (!task) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 text-center">
-        <Micro className="text-ink-3">No active task. Complete onboarding first.</Micro>
-        <Link href="/" className="micro text-teal-deep underline">Go to Dashboard</Link>
+      <div className="mx-auto flex min-h-screen w-full max-w-[560px] items-center px-5">
+        <EmptyBay
+          eyebrow="Learn"
+          title="There's nothing to coach you on yet."
+          body="The coach works from your syllabus — it needs to know what you're studying and how confident you are before it can ask you anything useful."
+          actionLabel="Add your syllabus"
+          actionHref="/onboarding"
+          className="w-full"
+        />
       </div>
     );
   }
@@ -120,7 +126,7 @@ export function CoachScreen() {
         </p>
 
         <div className="mt-8">
-          <CoachPanel context={coachContext} initialTurns={initialTurns} />
+          <CoachPanel key={task.id} context={coachContext} initialTurns={initialTurns} />
         </div>
 
         <Link

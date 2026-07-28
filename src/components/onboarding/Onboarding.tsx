@@ -134,10 +134,26 @@ export function Onboarding() {
 
   const handleBuildMission = async () => {
     setBuildingMission(true);
-    const updatedDates = {
-      ...subjectDates,
+    /* Save the corrected exam dates before planning, or the planner weights
+       the mission against the dates that were extracted rather than the
+       ones the student just fixed. */
+    const dates: Record<string, string> = {
       ...Object.fromEntries(extractedSubjects.map((s) => [s.id, s.examDate])),
+      ...subjectDates,
     };
+
+    try {
+      if (Object.keys(dates).length > 0) {
+        await fetch("/api/subjects", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dates }),
+        });
+      }
+    } catch {
+      // A failed save shouldn't block the student from starting.
+    }
+
     try {
       const date = new Date().toISOString().slice(0, 10);
       await fetch("/api/mission", {

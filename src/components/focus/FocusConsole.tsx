@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
@@ -8,8 +8,10 @@ import { cn } from "@/lib/cn";
 import { IconKey } from "@/components/ui/Key";
 import { Micro, Panel } from "@/components/ui/Panel";
 import { ThemeToggle } from "@/components/shell/ThemeToggle";
+import { EmptyBay, Skeleton } from "@/components/ui/States";
 import { CheckIcon, CloseIcon, PauseIcon, PlayIcon, SkipIcon } from "@/components/ui/Icons";
 import { applyConfidenceDelta } from "@/lib/liveConfidence";
+import { useChime } from "@/lib/useChime";
 import type { MissionTask } from "@/lib/mock";
 
 const PRESETS = [
@@ -27,6 +29,7 @@ function clock(total: number) {
 
 export function FocusConsole() {
   const reduce = useReducedMotion();
+  const chime = useChime();
   const searchParams = useSearchParams();
   const topicParam = searchParams.get("topic");
 
@@ -70,6 +73,9 @@ export function FocusConsole() {
   const finished = left === 0;
   const ticking = running && !finished;
 
+  /* Changing the preset resets the clock. Driven by the setting changing,
+     not by a render, so the cascade the lint rule guards against can't happen. */
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setLeft(sessionDuration);
     setOnBreak(false);
@@ -91,23 +97,29 @@ export function FocusConsole() {
     return () => clearInterval(id);
   }, [ticking]);
 
+  /* The phase boundary is an event from the clock, not a render cascade:
+     the countdown reaching zero is exactly when work becomes rest. */
   useEffect(() => {
     if (!finished || done) return;
     if (onBreak) {
       if (sessionCount >= repetitions) {
         setDone(true);
         setRunning(false);
+        chime("done");
         return;
       }
       setOnBreak(false);
       setRunning(true);
       setLeft(sessionDuration);
+      chime("session");
     } else {
       setSessionCount((c) => c + 1);
       setOnBreak(true);
       setLeft(breakDuration);
+      chime("break");
     }
-  }, [finished, onBreak, done, sessionCount, repetitions, sessionDuration, breakDuration]);
+  }, [finished, onBreak, done, sessionCount, repetitions, sessionDuration, breakDuration, chime]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handlePlayPause = () => {
     if (done) {
@@ -152,13 +164,28 @@ export function FocusConsole() {
   return (
     <div className="flex min-h-screen flex-col px-5 py-6 sm:px-8">
       {!missionLoaded ? (
-        <div className="mx-auto flex flex-1 items-center justify-center">
-          <Micro className="text-ink-3">Loading…</Micro>
+        <div
+          className="mx-auto flex w-full max-w-[560px] flex-1 flex-col items-center justify-center gap-6"
+          role="status"
+          aria-busy="true"
+          aria-label="Loading your session"
+        >
+          <Skeleton className="h-2.5 w-20" />
+          <Skeleton className="h-9 w-[65%]" delay={0.1} />
+          <Skeleton className="h-24 w-[55%]" delay={0.18} />
+          <Skeleton className="h-4 w-full" delay={0.26} />
+          <span className="sr-only">Loading your session</span>
         </div>
       ) : !task ? (
-        <div className="mx-auto flex flex-1 flex-col items-center justify-center gap-4 text-center">
-          <Micro className="text-ink-3">No active task. Complete onboarding first.</Micro>
-          <Link href="/onboarding" className="micro text-teal-deep underline">Onboarding</Link>
+        <div className="mx-auto flex w-full max-w-[560px] flex-1 items-center">
+          <EmptyBay
+            eyebrow="Learn"
+            title="No session to run yet."
+            body="Focus Mode runs one task from today's mission at a time. Add your syllabus and Atlas will pick the first one for you."
+            actionLabel="Add your syllabus"
+            actionHref="/onboarding"
+            className="w-full"
+          />
         </div>
       ) : (
         <>
@@ -182,24 +209,38 @@ export function FocusConsole() {
               {task.topic}
             </h1>
 
-            {onBreak ? (
-              <Micro className="mt-6 rounded-full bg-amber-wash/50 px-4 py-1.5 text-amber-deep">
-                Break · {clock(left)}
-              </Micro>
-            ) : (
-              <div
-                className="readout mt-8 text-[clamp(4rem,14vw,7.5rem)] font-bold leading-none tracking-[-0.04em] text-ink"
-                aria-live="off"
-              >
-                {clock(left)}
-              </div>
-            )}
+            {/* One readout for both phases — the number you're watching should
+                never move or change size when work turns into rest. */}
+            <Micro
+              className={cn(
+                "mt-7 rounded-full px-3.5 py-1.5 shadow-inset",
+                onBreak ? "text-amber-deep" : "text-ink-2",
+              )}
+            >
+              {done ? "Complete" : onBreak ? "Break" : "Focus"}
+            </Micro>
+            <motion.div
+              key={`${onBreak ? "break" : "focus"}-${sessionCount}-${done}`}
+              initial={reduce ? false : { scale: 0.97, opacity: 0.6 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+              className={cn(
+                "readout mt-4 text-[clamp(3.25rem,14vw,7.5rem)] font-bold leading-none tracking-[-0.04em]",
+                onBreak ? "text-amber-deep" : "text-ink",
+              )}
+              aria-live="off"
+            >
+              {clock(left)}
+            </motion.div>
 
             {/* Depletion trench */}
             <div className="mt-8 w-full max-w-md">
               <div className="relative h-4 w-full rounded-full bg-groove shadow-inset-deep">
                 <motion.div
-                  className="absolute inset-y-[3px] left-[3px] rounded-full bg-teal"
+                  className={cn(
+                    "absolute inset-y-[3px] left-[3px] rounded-full",
+                    onBreak ? "bg-amber" : "bg-teal",
+                  )}
                   style={{ boxShadow: "inset 0 1px 0 color-mix(in srgb, var(--emboss) 45%, transparent)" }}
                   animate={{ width: `calc(${Math.max(elapsed * 100, 0)}% - 6px)` }}
                   transition={{ duration: reduce ? 0 : 0.4, ease: "linear" }}
@@ -243,16 +284,22 @@ export function FocusConsole() {
                 {ticking ? <PauseIcon width={26} height={26} /> : <PlayIcon width={26} height={26} />}
               </button>
               <IconKey
-                label={markedComplete ? "Done!" : "Mark complete"}
+                label="Mark this task complete"
                 className="size-12"
+                held={markedComplete}
                 onClick={handleMarkComplete}
               >
                 <CheckIcon width={18} height={18} />
               </IconKey>
             </div>
 
-            <p className="micro mt-6 text-ink-3">
-              {done
+            <p
+              className={cn("micro mt-6", markedComplete ? "text-teal-deep" : "text-ink-3")}
+              aria-live="polite"
+            >
+              {markedComplete
+                ? "Marked complete · confidence up 5"
+                : done
                 ? "All done · great work today"
                 : finished && onBreak
                   ? "Break time · stretch, hydrate"

@@ -104,7 +104,7 @@ export function CoachPanel({ context, initialTurns = [], className, onMarkComple
       {/* Thread */}
       <div
         ref={threadRef}
-        className="max-h-[38vh] min-h-[180px] space-y-4 overflow-y-auto pr-1 lg:max-h-[42vh]"
+        className="max-h-[38vh] space-y-4 overflow-y-auto pr-1 lg:max-h-[42vh]"
       >
         {coach.turns.map((turn, i) => (
           <Bubble key={i} turn={turn} />

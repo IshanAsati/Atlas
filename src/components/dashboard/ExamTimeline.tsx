@@ -1,5 +1,9 @@
+"use client";
+
 import { Groove, Micro, Panel } from "@/components/ui/Panel";
-import { daysUntil, subjects } from "@/lib/mock";
+import { EmptyBay, Skeleton } from "@/components/ui/States";
+import { useAtlasData } from "@/lib/atlas-context";
+import { daysUntil } from "@/lib/mock";
 
 const HORIZON = 35; // days shown on the track
 
@@ -15,6 +19,7 @@ const accentVar: Record<string, string> = {
  * planner weights that subject today.
  */
 export function ExamTimeline() {
+  const { subjects, loading } = useAtlasData();
   const upcoming = subjects
     .map((s) => ({ ...s, days: daysUntil(s.examDate) }))
     .sort((a, b) => a.days - b.days);
@@ -33,6 +38,28 @@ export function ExamTimeline() {
 
       <Groove className="my-5" />
 
+      {loading ? (
+        <div
+          className="space-y-4"
+          role="status"
+          aria-busy="true"
+          aria-label="Loading exam dates"
+        >
+          <Skeleton className="h-[74px]" radius="rounded-key" />
+          <Skeleton className="h-[184px]" radius="rounded-key" delay={0.12} />
+          <span className="sr-only">Loading exam dates</span>
+        </div>
+      ) : upcoming.length === 0 ? (
+        <EmptyBay
+          title="No papers on the horizon."
+          body="Exam dates come from your syllabus. Add one and Atlas starts weighting your missions against the nearest paper."
+          actionLabel="Add your syllabus"
+          actionHref="/onboarding"
+          mark={false}
+          className="py-8"
+        />
+      ) : (
+      <>
       {/* Track */}
       <div className="relative h-[74px]">
         <div className="absolute inset-x-0 bottom-4 h-2.5 rounded-full bg-groove shadow-inset" />
@@ -89,6 +116,8 @@ export function ExamTimeline() {
           </li>
         ))}
       </ul>
+      </>
+      )}
     </Panel>
   );
 }

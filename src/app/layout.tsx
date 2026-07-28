@@ -19,11 +19,12 @@ const instrument = Instrument_Sans({
 });
 
 /* Data: Martian Mono. Wide and mechanical — every number and every
-   instrument label on the panel is set in it. */
+   instrument label on the panel is set in it. Only the weights the UI
+   actually uses; a wide mono is heavy and this demo may run on a hotspot. */
 const martian = Martian_Mono({
   variable: "--font-martian",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 

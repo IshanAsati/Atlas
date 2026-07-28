@@ -186,6 +186,19 @@ export async function updateTopicConfidence(id: string, confidence: number) {
   } catch { /* silent — client-side override still holds */ }
 }
 
+/**
+ * Persist an exam date the student corrected during onboarding. Without
+ * this the correction lives only in client state and the next mission is
+ * planned against the date that was extracted, not the one they fixed.
+ */
+export async function updateSubjectExamDate(id: string, examDate: string) {
+  if (!process.env.APPWRITE_SECRET_KEY) return;
+  try {
+    const d = await db();
+    await d.updateDocument(DB_ID, COLLECTIONS.subjects, id, { examDate });
+  } catch { /* silent — the client keeps showing the corrected date */ }
+}
+
 export async function updateTaskStatus(id: string, status: string) {
   if (!process.env.APPWRITE_SECRET_KEY) return;
   try {

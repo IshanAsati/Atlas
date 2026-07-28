@@ -185,15 +185,34 @@ body::before {
   color: var(--on-accent);
 }
 
+/* Chrome paints autofilled fields with its own blue/yellow, which cuts
+   straight through the panel. Repaint the well and keep our own relief
+   on top of it — the shadow listed first wins the stacking order. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  box-shadow: var(--sh-inset), 0 0 0 1000px var(--surface-lo) inset;
+  -webkit-text-fill-color: var(--ink);
+  caret-color: var(--ink);
+  /* Belt and braces: outlast any background repaint Chrome attempts. */
+  transition: background-color 100000s ease-in-out 0s;
+}
+
 /* ============================================================
    Component primitives
    ============================================================ */
 
+/* Instrument labels. 10px rather than 9px: these carry real information
+   and the demo is read from the back of a hall, not at arm's length. The
+   tracking comes down to keep the wide mono from getting wider with it. */
 @utility micro {
   font-family: var(--font-mono);
-  font-size: 0.5625rem;
-  line-height: 1.1;
-  letter-spacing: 0.16em;
+  font-size: 0.625rem;
+  line-height: 1.15;
+  letter-spacing: 0.13em;
   text-transform: uppercase;
   font-weight: 500;
 }

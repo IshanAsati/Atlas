@@ -113,3 +113,21 @@ function allSnapshot() {
 export function useLiveTopics() {
   return useSyncExternalStore(subscribe, allSnapshot, () => seedTopics);
 }
+
+const NO_OVERRIDES: Record<string, number> = {};
+
+/**
+ * Just the coach's changes, so callers holding their own topic list (from
+ * the API rather than the seed) can overlay them without inheriting mock
+ * data. Prefer this over `useLiveTopics` anywhere real topics are loaded.
+ */
+export function useConfidenceOverrides(): Record<string, number> {
+  return useSyncExternalStore(
+    subscribe,
+    () => {
+      hydrate();
+      return overrides;
+    },
+    () => NO_OVERRIDES,
+  );
+}

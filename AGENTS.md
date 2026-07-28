@@ -48,6 +48,31 @@ Also done:
 
 ---
 
+## Design/UX pass — 28 July
+
+Closed in this pass. Don't redo these.
+
+| Was | Now |
+|---|---|
+| Momentum dial disappeared whenever there was no mission — the empty branch replaced the whole two-column section | Page keeps its shape with or without data; a resting-needle dial holds the momentum bay |
+| `/graph` sat on "Loading graph…" forever, plus 5 `rules-of-hooks` errors (hooks after an early return) | Selection derived instead of synced through an effect; loading and empty states; canvas scrolls instead of collapsing under ~880px |
+| Coach thread was an empty ~250px void | `initialTurns` was set in an effect but `useCoach` reads it once via `useState`, so the opening turn never arrived. Now derived, with `key={task.id}` to reset per topic |
+| Chrome autofill painted the login inputs blue, over the top of the panel | `-webkit-autofill` repaints the well and keeps our own relief |
+| Bare "Loading…" / "NO MISSION YET. COMPLETE ONBOARDING FIRST." | `EmptyBay` + skeletons in `src/components/ui/States.tsx` — an instrument at rest, one sentence, one action |
+| Dashboard mixed real empty states with seed data in neighbouring panels | `RevisionQueue` and `ExamTimeline` read the context, not `mock.ts` |
+| Day streak hardcoded `"0"` (#7) | `calcStreak` / `calcBestStreak` in `src/lib/stats.ts`, wired to `calendarDays` |
+| Exam date edits discarded (#6) | `PATCH /api/subjects` + `updateSubjectExamDate`; onboarding saves before planning |
+| Pomodoro silent, break hid the big readout | Web Audio chimes (`src/lib/useChime.ts`, no audio files), one readout across both phases, phase-change pulse, mark-complete confirms on screen |
+| `micro` labels at 9px | 10px with tighter tracking — these are read off a projector |
+| Martian Mono shipped 5 weights | 4; only 400–700 are used |
+| 10 lint errors | 0 (two effects carry a justified `eslint-disable` — a clock's phase boundary really is an effect) |
+
+**Not verified:** mobile. The browser tooling here refused to resize, so the
+375px fixes (dock labels truncating, calendar gap) were made by inspection
+only. Check in DevTools device mode before the demo.
+
+---
+
 ## Known gaps and planned features
 
 ### 1. Coach memory persists only per-topic, not per-user across topics
@@ -75,12 +100,12 @@ The proxy middleware checks the session cookie for page navigations, but `GET /a
 
 **What it needs:** Each API route should call `verifySession()` from `src/lib/auth/server.ts` at the top, using either the `atlas-session` cookie or the `Authorization: Bearer <token>` header. If the session is invalid, return `401 { error: "Unauthorized" }`. The data layer's `resolveStudentId()` should return `null` instead of `"student-1"` when no session is found, and callers should handle `null` by returning 401 or empty data.
 
-### 6. Onboarding does not persist exam date edits or study time
+### 6. Onboarding does not persist exam date edits or study time — ✅ dates done, study time still open
 When the user taps a subject's exam date and changes it, then clicks "Dates look right", the modified dates are held in `subjectDates` state on the client but never sent to the server. Same for the study time in step 2. The "Build my first mission" button sends `{ date, studyTime }` to `POST /api/mission`, which generates a mission for that day. But the updated subject exam dates are never saved to Appwrite, so the next mission generation will use the original dates from the seed or extraction.
 
 **What it needs:** In `handleBuildMission()`, after `setSubjectDates()`, send a `PATCH /api/subjects` request with the updated exam dates. Create a `src/app/api/subjects/route.ts` endpoint that updates each subject document in Appwrite. The study time value should also be saved to the student's profile in the `students` collection so the mission planner can read it on subsequent days.
 
-### 7. Day streak is always "0"
+### 7. Day streak is always "0" — ✅ done
 The `TodayMission` component shows a "Day streak" readout that's hardcoded to `"0"`. It should calculate the streak from the `calendarDays` data: count consecutive days (going backward from today) where the student had a `"complete"` or `"partial"` state. If yesterday was missed, the streak is 0.
 
 **What it needs:** A function `calcStreak(calendarDays: Record<string, {state}>)` in the data layer that walks days backward from today and counts until it finds a `"missed"` or missing day. Wire it into the DataProvider and the dashboard.
@@ -160,7 +185,7 @@ If the DeepSeek API fails, Appwrite is down, or a bug causes a crash, there's no
 
 **What it needs:** An error boundary component wrapping the shell layout. A logging service (Sentry, LogRocket, or a simple `/api/log` endpoint that writes to Appwrite). At minimum: log API errors with timestamp, route, and error message so debugging doesn't require reproducing locally.
 
-### 23. Graph page is not working
+### 23. Graph page is not working — ✅ crash and dead loading fixed; API wiring still open
 The LearningGraph has a crash path when `subjects` is empty (prerender error). Fixed temporarily with a useEffect guard, but the graph has no real API integration — it uses `useLiveTopics()` from `liveConfidence.ts` (client-side sessionStorage) and the subject list.
 
 **What it needs:** The graph should fetch topics from `GET /api/topics` and subjects from `GET /api/topics?type=subjects` instead of relying on mock data. The SVG layout should handle dynamic subject counts. Topic inspector panel should load from the NCERT knowledge graph instead of showing hardcoded placeholder text.
@@ -172,7 +197,7 @@ The coach and extraction routes both default to `deepseek-v4-flash` (line 10 of 
 
 The app is functional but has major UX gaps that hurt the demo. These are ordered by impact:
 
-#### 25.1 Empty states — every screen needs one
+#### 25.1 Empty states — every screen needs one — ✅ done
 Right now when a new user signs up and goes through onboarding, the dashboard shows blank panels with "No mission yet." text. There's no CTA to start extraction, no guidance, no visual indication of what to do next.
 
 **What to do:** Every section needs a designed empty state:
@@ -181,7 +206,7 @@ Right now when a new user signs up and goes through onboarding, the dashboard sh
 - **Graph** when no topics: show the tree skeleton with "Add subjects to see your learning graph"
 - **Progress** when no student profile: show "Complete onboarding to see your stats"
 
-#### 25.2 Loading skeletons everywhere
+#### 25.2 Loading skeletons everywhere — ✅ done
 Every component currently shows `<Micro>Loading…</Micro>` text. This feels dead. Users can't tell if something is genuinely loading or stuck.
 
 **What to do:** Replace text loaders with shimmer skeleton variants of each component:
@@ -209,14 +234,14 @@ The graph currently crashes on prerender when subjects is empty (guard added but
 - Show topic confidence visually: colour-coded node borders (red < 40, amber 40-70, green > 70)
 - Topic inspector panel on click: show knowledge graph concepts for that topic (`getKnowledge()` from the NCERT knowledge base)
 
-#### 25.5 Pomodoro — sound effects and completion animation
+#### 25.5 Pomodoro — sound effects and completion animation — ✅ done
 The timer ticks down in silence. "Session done" or "Break time" just appears as text. Users don't feel a transition.
 
 **What to do:** Add two things:
 - `useSound()` hook that plays a short chime on session/break/done state change (Web Audio API oscillator, no audio files needed — a simple 440Hz beep for 200ms costs nothing)
 - Completion animation: when `done` or `finished` becomes true, trigger a brief scale + fade pulse on the timer readout (`motion.div` with `scale: [1, 1.05, 1]` over 300ms)
 
-#### 25.6 Mobile — test at 375px
+#### 25.6 Mobile — test at 375px — ⚠️ fixed by inspection, NOT visually verified
 No screen has been tested below 640px. The sidebar rail switches to a bottom dock at `md:` breakpoints, but the grid layouts overflow:
 - Dashboard 2-column grid: use `grid-cols-1` below `lg:`, then `lg:grid-cols-2`
 - Calendar month grid: day cells at `aspect-square` with 7 columns — at 375px each cell is ~40px, the dots won't show. Add `min-w-0` and reduce `gap-2` to `gap-1`

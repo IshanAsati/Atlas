@@ -100,12 +100,15 @@ export function Rail() {
               href={href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex flex-1 flex-col items-center gap-1 rounded-key py-2.5 transition-all",
+                "flex min-w-0 flex-1 flex-col items-center gap-1 rounded-key px-0.5 py-2.5 transition-all",
                 active ? "from-base-lo to-base-hi bg-linear-145 text-teal shadow-inset" : "text-ink-3",
               )}
             >
               <Icon width={19} height={19} />
-              <span className="micro text-[0.5rem] leading-none">{label}</span>
+              {/* Tracking comes off so six labels fit across a 375px phone */}
+              <span className="micro w-full truncate text-center text-[0.5rem] leading-none tracking-[0.05em]">
+                {label}
+              </span>
             </Link>
           );
         })}

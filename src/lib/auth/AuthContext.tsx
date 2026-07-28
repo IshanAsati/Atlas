@@ -56,6 +56,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     mounted.current = true;
     const token = getStoredSession();
     if (!token) {
+      // Reading localStorage during render would break hydration, so the
+      // only correct place to settle this flag is on mount.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
       return;
     }

@@ -1,14 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/cn";
 import { Key } from "@/components/ui/Key";
 import { Groove, Micro, Panel } from "@/components/ui/Panel";
 import { ConfidenceMeter } from "@/components/ui/Meters";
+import { EmptyBay, Skeleton } from "@/components/ui/States";
 import { statusColor, statusLabel } from "@/lib/status";
 import { ArrowIcon } from "@/components/ui/Icons";
-import { useLiveTopics } from "@/lib/liveConfidence";
+import { useConfidenceOverrides } from "@/lib/liveConfidence";
 import { useAtlasData } from "@/lib/atlas-context";
 import { topicStatus, type Topic } from "@/lib/mock";
 
@@ -31,27 +32,26 @@ interface Placed {
 
 export function LearningGraph() {
   const reduce = useReducedMotion();
-  const { subjects, loading } = useAtlasData();
-  const [subjectId, setSubjectId] = useState<string | null>(null);
+  const { subjects, topics: allSubjectTopics, loading } = useAtlasData();
+  const overrides = useConfidenceOverrides();
+  const [pickedSubject, setPickedSubject] = useState<string | null>(null);
   const [topicId, setTopicId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (subjects.length > 0 && !subjectId) {
-      setSubjectId(subjects[0].id);
-    }
-  }, [subjects, subjectId]);
+  /* Derive the selection instead of syncing it into state in an effect —
+     the effect version left the graph stuck on "Loading" forever whenever
+     subjects arrived after the first paint. */
+  const subjectId = pickedSubject ?? subjects[0]?.id ?? null;
 
-  if (loading || !subjectId) {
-    return (
-      <Panel depth="raised" radius="bay" className="p-7">
-        <Micro className="text-ink-3">Loading graph…</Micro>
-      </Panel>
-    );
-  }
+  /* Real topics from the API, overlaid with any confidence the coach has
+     moved this session. */
+  const allTopics = useMemo(
+    () =>
+      allSubjectTopics.map((t) =>
+        t.id in overrides ? { ...t, confidence: overrides[t.id] } : t,
+      ),
+    [allSubjectTopics, overrides],
+  );
 
-  /* Reads through the live store, so a confidence change made by the coach
-     in Focus Mode is already reflected here. */
-  const allTopics = useLiveTopics();
   const bySubject = useCallback(
     (id: string) => allTopics.filter((t) => t.subjectId === id),
     [allTopics],
@@ -67,11 +67,31 @@ export function LearningGraph() {
 
   const disciplines = useMemo(
     () => [...new Set(subjects.map((s) => s.discipline))],
-    [],
+    [subjects],
   );
-  const topics = useMemo(() => bySubject(subjectId), [bySubject, subjectId]);
+  const topics = useMemo(
+    () => (subjectId ? bySubject(subjectId) : []),
+    [bySubject, subjectId],
+  );
 
-  const canvasH = Math.max(subjects.length, topics.length) * STEP - GAP;
+  if (loading) {
+    return <GraphSkeleton />;
+  }
+
+  if (!subjectId || subjects.length === 0) {
+    return (
+      <EmptyBay
+        eyebrow="Track"
+        title="Your learning graph builds itself from your syllabus."
+        body="Every subject becomes a branch and every chapter a node, each carrying its own confidence score. Add a syllabus and the structure appears."
+        actionLabel="Add your syllabus"
+        actionHref="/onboarding"
+        className="min-h-[420px] justify-center"
+      />
+    );
+  }
+
+  const canvasH = Math.max(subjects.length, topics.length, 1) * STEP - GAP;
 
   const blockTop = (count: number) => (canvasH - (count * STEP - GAP)) / 2;
 
@@ -121,10 +141,16 @@ export function LearningGraph() {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+      {/* Below ~880px the three columns can't fit; scroll them horizontally
+          rather than letting the nodes collapse into each other. */}
       <Panel depth="inset" radius="bay" className="overflow-x-auto p-6 sm:p-8">
         <div
           className="relative mx-auto"
-          style={{ width: COL_W * 3 + COL_GAP * 2, height: canvasH }}
+          style={{
+            width: COL_W * 3 + COL_GAP * 2,
+            minWidth: COL_W * 3 + COL_GAP * 2,
+            height: canvasH,
+          }}
         >
           <svg
             className="pointer-events-none absolute inset-0 overflow-visible"
@@ -162,7 +188,7 @@ export function LearningGraph() {
               variant="subject"
               active={node.id === subjectId}
               onSelect={() => {
-                setSubjectId(node.id);
+                setPickedSubject(node.id);
                 setTopicId(bySubject(node.id)[0]?.id ?? null);
               }}
             />
@@ -328,6 +354,58 @@ function Row({ label, value }: { label: string; value: string }) {
     <div className="flex items-baseline justify-between gap-3">
       <dt className="text-[0.85rem] text-ink-2">{label}</dt>
       <dd className="readout text-[0.8rem] font-medium text-ink">{value}</dd>
+    </div>
+  );
+}
+
+/**
+ * The graph while it loads: the three columns cut into the sheet with no
+ * readings in them yet, so the page doesn't reflow when data lands.
+ */
+function GraphSkeleton() {
+  const columns = [2, 4, 4];
+  return (
+    <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+      <Panel
+        depth="inset"
+        radius="bay"
+        className="overflow-x-auto p-6 sm:p-8"
+        role="status"
+        aria-busy="true"
+        aria-label="Loading your learning graph"
+      >
+        <div
+          className="mx-auto flex gap-[76px]"
+          style={{ minWidth: COL_W * 3 + COL_GAP * 2 }}
+        >
+          {columns.map((count, col) => (
+            <div
+              key={col}
+              className="flex flex-col justify-center gap-[18px]"
+              style={{ width: COL_W, minHeight: 4 * STEP - GAP }}
+            >
+              {Array.from({ length: count }, (_, row) => (
+                <span key={row} className="block" style={{ height: NODE_H }}>
+                  <Skeleton
+                    radius="rounded-key"
+                    className="h-full w-full"
+                    delay={(col * 4 + row) * 0.09}
+                  />
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
+        <span className="sr-only">Loading your learning graph</span>
+      </Panel>
+      <Panel depth="raised" radius="bay" className="p-6 sm:p-7">
+        <div className="space-y-4">
+          <Skeleton className="h-2.5 w-14" />
+          <Skeleton className="h-6 w-44" delay={0.1} />
+          <Skeleton className="h-10 w-24" delay={0.2} />
+          <Skeleton className="h-2.5 w-full" delay={0.3} />
+        </div>
+      </Panel>
     </div>
   );
 }
