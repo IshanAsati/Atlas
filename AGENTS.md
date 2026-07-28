@@ -282,7 +282,7 @@ Every component currently shows `<Micro>Loading…</Micro>` text. This feels dea
 - `SkeletonCalendar` — grid of pulsing day cells (same aspect-square, greyed)
 Framer Motion's `animate={{ opacity: [0.3, 0.6, 0.3] }}` with `transition={{ repeat: Infinity, duration: 1.5 }}` is all it takes. The `loading` flag from DataProvider controls visibility.
 
-#### 25.3 Progress page — real data, not mock
+#### 25.3 Progress page — real data, not mock — ✅ done
 The `/progress` page is the most critical thing to fix. It imports `momentumHistory`, `subjectConfidence`, `weeklyMinutes`, `student`, and `subjects` directly from `src/lib/mock.ts`. Every number on the page is fake. The chart components (`MomentumTrend`, `WeeklyBars`) show hardcoded arrays.
 
 **What to do:** Create `GET /api/progress` that computes from real Appwrite data:
