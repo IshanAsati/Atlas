@@ -126,10 +126,13 @@ export function Onboarding() {
               failure = frame.message ?? "Extraction failed.";
             }
             if (frame.type === "result" && frame.subjects) {
-              resultSubjects = frame.subjects.map((s: Omit<Subject, "id">, i: number) => ({
+              /* Keep whatever id the server saved these under. Renumbering
+                 them s1, s2, s3 meant every exam-date correction was sent
+                 against an id that doesn't exist, so nothing ever saved. */
+              resultSubjects = frame.subjects.map((s: Subject, i: number) => ({
                 ...s,
-                id: `s${i + 1}`,
-                accent: (["teal", "amber", "rust"] as const)[i % 3],
+                id: s.id ?? `s${i + 1}`,
+                accent: s.accent ?? (["teal", "amber", "rust"] as const)[i % 3],
               }));
               /* Count per subject, not one number reused for all of them. */
               if (Array.isArray(frame.topics)) {

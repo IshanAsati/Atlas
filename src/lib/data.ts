@@ -292,10 +292,16 @@ export async function updateTaskStatus(id: string, status: string) {
   } catch { /* silent */ }
 }
 
+/**
+ * Returns the subjects as saved, carrying the IDs Appwrite assigned.
+ * The caller needs them: onboarding lets the student correct an exam date,
+ * and a correction sent against the extractor's temporary "s1" ID updates
+ * nothing at all.
+ */
 export async function saveExtractedSubjects(
   subs: Omit<Subject, "id">[],
   tops: Omit<Topic, "id">[],
-) {
+): Promise<Subject[]> {
   if (!process.env.APPWRITE_SECRET_KEY) {
     throw new Error("APPWRITE_SECRET_KEY is not set — nothing can be saved.");
   }
@@ -345,6 +351,8 @@ export async function saveExtractedSubjects(
       studentId: sid,
     });
   }
+
+  return subs.map((s, i) => ({ ...s, id: realIdFor.get(`s${i + 1}`)! }));
 }
 
 export async function saveMission(

@@ -197,7 +197,10 @@ export const coachThread = [
   },
 ];
 
-export function daysUntil(iso: string, from: Date = TODAY): number {
+/* Defaults to the real today. It used to default to the frozen demo date
+   above, so every "days until the exam" on screen was counted from 27 July
+   2026 no matter when you were looking at it. */
+export function daysUntil(iso: string, from: Date = new Date()): number {
   const target = new Date(`${iso}T00:00:00`);
   const start = new Date(from.getFullYear(), from.getMonth(), from.getDate());
   return Math.round((target.getTime() - start.getTime()) / 86_400_000);

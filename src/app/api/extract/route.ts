@@ -16,7 +16,9 @@ interface ExtractionFrame {
   value?: string;
   text?: string;
   message?: string;
-  subjects?: Omit<Subject, "id">[];
+  /* Subjects carry their saved id once persisted, so the client can send
+     exam-date corrections against something that exists. */
+  subjects?: (Omit<Subject, "id"> & { id?: string })[];
   topics?: Omit<Topic, "id">[];
 }
 
@@ -149,7 +151,11 @@ export async function POST(request: Request) {
 
         send({ type: "stage", text: "Saving to your account..." });
         try {
-          await saveExtractedSubjects(result.subjects, result.topics ?? []);
+          /* Replace the parsed subjects with the saved ones so the client
+             holds the real IDs — a later exam-date correction is sent
+             against these, and "s1" would update nothing. */
+          const saved = await saveExtractedSubjects(result.subjects, result.topics ?? []);
+          result = { ...result, subjects: saved.length ? saved : result.subjects };
         } catch (saveError) {
           const why = saveError instanceof Error ? saveError.message : "unknown error";
           console.error("[extract] save failed:", why);
@@ -161,7 +167,10 @@ export async function POST(request: Request) {
           return;
         }
 
-        send({ type: "stage", text: `Saved ${result.subjects.length} subjects and ${result.topics?.length ?? 0} topics.` });
+        send({
+          type: "stage",
+          text: `Saved ${result.subjects?.length ?? 0} subjects and ${result.topics?.length ?? 0} topics.`,
+        });
         send(result);
       } catch (error) {
         const reason = error instanceof Error ? error.message : "unknown error";
