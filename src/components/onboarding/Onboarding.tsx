@@ -11,6 +11,7 @@ import { ArrowIcon, AtlasMark, CheckIcon, UploadIcon } from "@/components/ui/Ico
 import { subjects as seedSubjects } from "@/lib/mock";
 import type { Subject } from "@/lib/mock";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { useAtlasData } from "@/lib/atlas-context";
 import { LoginForm } from "@/components/auth/LoginForm";
 
 const STEPS = ["Syllabus", "Confirm", "Time"];
@@ -25,6 +26,7 @@ const accentVar: Record<string, string> = {
 
 export function Onboarding() {
   const { user, loading } = useAuth();
+  const { refresh } = useAtlasData();
   const router = useRouter();
   const reduce = useReducedMotion();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -225,6 +227,11 @@ export function Onboarding() {
     } catch {
       // proceed even if mission gen fails
     }
+    /* The provider now lives at the root and holds a snapshot taken before
+       any of this existed. Reload it before leaving, or the dashboard shows
+       the empty state we just spent onboarding filling in. */
+    await refresh();
+
     setBuildingMission(false);
     router.push("/");
   };

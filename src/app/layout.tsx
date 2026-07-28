@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, Instrument_Sans, Martian_Mono } from "next/font/google";
 import { AuthProvider } from "@/lib/auth/AuthContext";
+import { DataProvider } from "@/lib/atlas-context";
 import "./globals.css";
 
 /* Display: Bricolage Grotesque. Slightly irregular grotesque with real
@@ -52,7 +53,13 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="min-h-full">
-        <AuthProvider>{children}</AuthProvider>
+        {/* Both providers sit at the root: Focus Mode, the coach and
+            onboarding live outside the shell layout, and mounting the data
+            provider only inside the shell left them waiting on a `loading`
+            flag that never cleared. */}
+        <AuthProvider>
+          <DataProvider>{children}</DataProvider>
+        </AuthProvider>
       </body>
     </html>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useAuth } from "@/lib/auth/AuthContext";
 import type { Subject, Topic, MissionTask } from "@/lib/mock";
 
 export interface StudentProfile {
@@ -70,6 +71,7 @@ export function useAtlasStudent() {
 }
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
+  const { user, loading: authLoading } = useAuth();
   const [student, setStudent] = useState<StudentProfile | null>(null);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
@@ -103,12 +105,24 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const inited = useRef(false);
+  /* Signed out there is nothing to fetch, and the API would only redirect.
+     Keyed on the account so switching users reloads rather than showing the
+     previous student's syllabus. */
+  const loadedFor = useRef<string | null>(null);
   useEffect(() => {
-    if (inited.current) return;
-    inited.current = true;
-    refresh();
-  }, [refresh]);
+    if (authLoading) return;
+    if (!user) {
+      loadedFor.current = null;
+      // Settling the flag when auth resolves to "signed out" is the point of
+      // this effect, not a render cascade.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLoading(false);
+      return;
+    }
+    if (loadedFor.current === user.id) return;
+    loadedFor.current = user.id;
+    void refresh();
+  }, [authLoading, user, refresh]);
 
   const updateTaskStatus = useCallback(
     (taskId: string, status: MissionTask["status"]) => {
