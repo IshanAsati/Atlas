@@ -116,15 +116,10 @@ written by the agent; I connected them to `CalendarBoard` (day cells are now
 selectable, detail panel renders, planned days get a pip). Verify the schedule
 actually distributes topics across days before each exam.
 
-**OCR — HALF DONE, THIS IS THE ONE THAT NEEDS WORK.**
-`tesseract.js` is installed, `src/lib/extract/ocr.ts` exists
-(`ocrImage`, `isImageFile`, `MIN_OCR_CHARS`), and `/api/extract` already
-accepts a `text` form field instead of a file. But `Onboarding.tsx` imports
-those helpers and **never calls them** — hence the unused-var warnings. To
-finish: on an image pick, call `ocrImage(file, setOcrPercent)`, feed progress
-into the existing `stages`/`stageIndex` UI, POST the text as `text`, and error
-via `extractError` if under `MIN_OCR_CHARS`. Also widen the file input's
-`accept` and fix the copy that says a photo won't work.
+**OCR — ✅ done.**
+`Onboarding.tsx` calls `ocrImage()` for images, sends text to `/api/extract`,
+handles progress via `ocrPercent`, errors on low chars. File input accepts
+`.pdf,.png,.jpg,.jpeg,.webp`.
 
 ### Not started
 
