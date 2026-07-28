@@ -12,6 +12,7 @@ import { ArrowIcon } from "@/components/ui/Icons";
 import { useConfidenceOverrides } from "@/lib/liveConfidence";
 import { useAtlasData } from "@/lib/atlas-context";
 import { topicStatus, type Topic } from "@/lib/mock";
+import { getKnowledge } from "@/lib/coach/knowledge-graph";
 
 /* Geometry is fixed rather than measured, so the connector curves can be
    drawn without a layout pass. */
@@ -294,6 +295,7 @@ function TopicInspector({ topic }: { topic: Topic | null }) {
   }
 
   const status = topicStatus(topic.confidence, topic.lastSeenDays);
+  const knowledge = getKnowledge(topic.name);
 
   return (
     <Panel depth="raised" radius="bay" className="flex flex-col p-6 sm:p-7">
@@ -336,14 +338,45 @@ function TopicInspector({ topic }: { topic: Topic | null }) {
         />
       </dl>
 
+      {knowledge.concepts.length > 0 && (
+        <>
+          <Groove className="my-5" />
+          <Micro className="text-ink-3">Key concepts</Micro>
+          <ul className="mt-3 space-y-3">
+            {knowledge.concepts.slice(0, 3).map((c) => (
+              <li key={c.name}>
+                <p className="text-[0.85rem] font-medium text-ink">{c.name}</p>
+                <p className="mt-0.5 text-[0.75rem] leading-snug text-ink-2">{c.blurb}</p>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {knowledge.misconceptions.length > 0 && (
+        <>
+          <Groove className="my-5" />
+          <Micro className="text-ink-3">Common misconceptions</Micro>
+          <ul className="mt-3 space-y-2">
+            {knowledge.misconceptions.slice(0, 2).map((m, i) => (
+              <li key={i} className="rounded-key bg-amber-wash/40 px-3 py-2 text-[0.75rem] leading-snug text-amber-deep">
+                {m.wrong}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      <Groove className="my-5" />
+
       <Key
         href={`/focus?topic=${topic.id}`}
         tone="primary"
         size="md"
-        className="mt-7 w-full"
+        className="w-full"
         icon={<ArrowIcon width={16} height={16} />}
       >
-        Revise for 8 min
+        Revise this topic
       </Key>
     </Panel>
   );
