@@ -221,7 +221,7 @@ export function FocusConsole() {
               exit={reduce ? undefined : { opacity: 0, x: 24 }}
               transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
             >
-              <CoachPanel context={coachContext} initialTurns={openingTurns} />
+              <CoachPanel context={coachContext} initialTurns={openingTurns} onMarkComplete={handleMarkComplete} />
             </motion.aside>
           )}
         </AnimatePresence>

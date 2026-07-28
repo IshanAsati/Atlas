@@ -1,0 +1,50 @@
+/**
+ * Coach memory persistence — loads and saves coaching threads to Appwrite.
+ */
+
+import { getDatabases, DB_ID, COLLECTIONS } from "@/lib/appwrite/server";
+import { ID } from "node-appwrite";
+import type { CoachTurn } from "@/lib/coach/types";
+
+const STUDENT_ID = "student-1";
+
+const databases = getDatabases();
+
+export async function loadThread(topicId: string): Promise<CoachTurn[]> {
+  if (!process.env.APPWRITE_SECRET_KEY) return [];
+  try {
+    const { documents } = await databases.listDocuments(DB_ID, COLLECTIONS.coachThreads, [
+      `equal("studentId", "${STUDENT_ID}")`,
+      `equal("topicId", "${topicId}")`,
+    ]);
+    if (documents.length === 0) return [];
+    const raw = documents[0];
+    const turnsJson = raw.turns as string;
+    return JSON.parse(turnsJson) as CoachTurn[];
+  } catch (e) {
+    console.error("[coach memory] load failed:", e);
+    return [];
+  }
+}
+
+export async function saveThread(topicId: string, turns: CoachTurn[]) {
+  if (!process.env.APPWRITE_SECRET_KEY) return;
+  try {
+    const { documents } = await databases.listDocuments(DB_ID, COLLECTIONS.coachThreads, [
+      `equal("studentId", "${STUDENT_ID}")`,
+      `equal("topicId", "${topicId}")`,
+    ]);
+    const payload = {
+      studentId: STUDENT_ID,
+      topicId,
+      turns: JSON.stringify(turns),
+    };
+    if (documents.length > 0) {
+      await databases.updateDocument(DB_ID, COLLECTIONS.coachThreads, documents[0].$id, payload);
+    } else {
+      await databases.createDocument(DB_ID, COLLECTIONS.coachThreads, ID.unique(), payload);
+    }
+  } catch (e) {
+    console.error("[coach memory] save failed:", e);
+  }
+}

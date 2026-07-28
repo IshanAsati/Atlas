@@ -175,6 +175,12 @@ async function main() {
   await addAttr("calendar_days", "state", STRING);
   await addAttr("calendar_days", "minutes", INTEGER);
 
+  console.log("  coach_threads");
+  await ensureCollection("coach_threads", "Coach Threads");
+  await addAttr("coach_threads", "studentId", STRING);
+  await addAttr("coach_threads", "topicId", STRING);
+  await addAttr("coach_threads", "turns", STRING, { size: 65535 });
+
   console.log("\nStorage");
   await ensureBucket();
 

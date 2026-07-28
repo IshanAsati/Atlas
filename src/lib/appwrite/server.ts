@@ -40,4 +40,5 @@ export const COLLECTIONS = {
   missions: "missions",
   missionTasks: "mission_tasks",
   calendarDays: "calendar_days",
+  coachThreads: "coach_threads",
 } as const;

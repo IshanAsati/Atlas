@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import { applyConfidenceDelta, useTopicConfidence } from "@/lib/liveConfidence";
 import type {
+  CoachAction,
   CoachContext,
   CoachFrame,
   CoachQuestion,
@@ -30,6 +31,7 @@ export function useCoach({ context, initialTurns = [], initialQuestion = null }:
   const [status, setStatus] = useState<CoachStatus>("idle");
   const [source, setSource] = useState<CoachSource>(null);
   const [question, setQuestion] = useState<CoachQuestion | null>(initialQuestion);
+  const [actions, setActions] = useState<CoachAction[]>([]);
   /* Confidence is not local state — it lives in the shared store so the
      learning graph and the dashboard show the same number this panel does. */
   const confidence = useTopicConfidence(context.topicId, context.confidence);
@@ -37,6 +39,8 @@ export function useCoach({ context, initialTurns = [], initialQuestion = null }:
   const [error, setError] = useState<string | null>(null);
 
   const abort = useRef<AbortController | null>(null);
+
+  const clearActions = useCallback(() => setActions([]), []);
 
   const send = useCallback(
     async (message: string) => {
@@ -51,6 +55,7 @@ export function useCoach({ context, initialTurns = [], initialQuestion = null }:
       setTurns(nextTurns);
       setQuestion(null);
       setStreamed("");
+      setActions([]);
       setError(null);
       setLastDelta(null);
       setStatus("thinking");
@@ -100,12 +105,19 @@ export function useCoach({ context, initialTurns = [], initialQuestion = null }:
               reply += frame.text;
               setStatus("streaming");
               setStreamed(reply);
+            } else if (frame.type === "tool_call") {
+              setStatus("thinking");
+            } else if (frame.type === "action") {
+              setActions((prev) => [...prev, frame.action]);
             } else if (frame.type === "result") {
               misconception = frame.result.misconception;
               setQuestion(frame.result.nextQuestion);
               if (frame.result.confidenceDelta !== 0) {
                 setLastDelta(frame.result.confidenceDelta);
                 applyConfidenceDelta(context.topicId, frame.result.confidenceDelta);
+              }
+              if (frame.result.actions.length > 0) {
+                setActions((prev) => [...prev, ...frame.result.actions]);
               }
             } else if (frame.type === "error") {
               throw new Error(frame.message);
@@ -146,11 +158,13 @@ export function useCoach({ context, initialTurns = [], initialQuestion = null }:
     status,
     source,
     question,
+    actions,
     confidence,
     lastDelta,
     error,
     send,
     retry,
+    clearActions,
     busy: status === "thinking" || status === "streaming",
   };
 }

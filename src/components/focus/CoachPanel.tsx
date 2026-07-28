@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/cn";
 import { Groove, Micro, Panel } from "@/components/ui/Panel";
@@ -8,12 +9,13 @@ import { ConfidenceMeter } from "@/components/ui/Meters";
 import { ArrowIcon } from "@/components/ui/Icons";
 import { topicStatus } from "@/lib/mock";
 import { useCoach } from "@/lib/coach/useCoach";
-import type { CoachContext, CoachTurn } from "@/lib/coach/types";
+import type { CoachAction, CoachContext, CoachTurn } from "@/lib/coach/types";
 
 interface CoachPanelProps {
   context: CoachContext;
   initialTurns?: CoachTurn[];
   className?: string;
+  onMarkComplete?: () => void;
 }
 
 /**
@@ -22,8 +24,9 @@ interface CoachPanelProps {
  * moving as the coach evaluates — so the effect of the conversation on
  * Atlas's model of them is visible while they talk.
  */
-export function CoachPanel({ context, initialTurns = [], className }: CoachPanelProps) {
+export function CoachPanel({ context, initialTurns = [], className, onMarkComplete }: CoachPanelProps) {
   const reduce = useReducedMotion();
+  const router = useRouter();
   const coach = useCoach({ context, initialTurns });
   const [draft, setDraft] = useState("");
   const threadRef = useRef<HTMLDivElement>(null);
@@ -35,6 +38,16 @@ export function CoachPanel({ context, initialTurns = [], className }: CoachPanel
     if (!thread) return;
     thread.scrollTop = thread.scrollHeight;
   }, [coach.turns, coach.streamed, coach.status]);
+
+  /* Execute UI actions emitted by the coach. */
+  useEffect(() => {
+    if (coach.actions.length === 0) return;
+    for (const action of coach.actions) {
+      executeAction(action, router, onMarkComplete);
+    }
+    coach.clearActions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coach.actions, coach.clearActions, onMarkComplete, router]);
 
   const submit = () => {
     if (!draft.trim() || coach.busy) return;
@@ -269,6 +282,23 @@ function QuizBlock({
       </ul>
     </div>
   );
+}
+
+function executeAction(
+  action: CoachAction,
+  router: ReturnType<typeof useRouter>,
+  onMarkComplete?: () => void,
+) {
+  switch (action.type) {
+    case "mark_task_complete":
+      onMarkComplete?.();
+      break;
+    case "navigate":
+      router.push(action.to);
+      break;
+    case "highlight_topic":
+      break;
+  }
 }
 
 function SourceBadge({ source }: { source: "live" | "offline" | null }) {

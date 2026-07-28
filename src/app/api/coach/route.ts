@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
-import { toChatMessages } from "@/lib/coach/prompt";
+import { toChatMessages, TOOLS } from "@/lib/coach/prompt";
 import { offlineReply } from "@/lib/coach/offline";
+import { loadThread, saveThread } from "@/lib/coach/memory";
+import { executeTool } from "@/lib/coach/tools";
 import {
   EMPTY_RESULT,
   SENTINEL,
@@ -8,24 +10,24 @@ import {
   type CoachFrame,
   type CoachRequest,
   type CoachResult,
+  type CoachTurn,
 } from "@/lib/coach/types";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 const DEEPSEEK_URL = "https://api.deepseek.com/chat/completions";
 const MODEL = process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash";
-const TIMEOUT_MS = 20_000;
+const TIMEOUT_MS = 30_000;
 
 /**
- * The coach endpoint. The DeepSeek key lives here and never reaches the
- * browser. Responds with newline-delimited JSON frames rather than SSE —
- * one less protocol to get wrong, and a plain ReadableStream reader on the
- * client can parse it.
+ * The coach endpoint. Streams newline-delimited JSON frames.
  *
- * The model streams prose, then a single sentinel line carrying the
- * structured evaluation. This route splits the two so the client never
- * sees a half-written JSON object.
+ * What's new:
+ * - Loads the persisted thread from Appwrite so the coach remembers past turns.
+ * - Gives DeepSeek tools (query Appwrite, web search, UI actions).
+ * - Runs a tool loop: if the model calls tools, executes them and asks again.
+ * - Persists the updated thread back to Appwrite.
  */
 export async function POST(request: Request) {
   let body: CoachRequest;
@@ -47,8 +49,6 @@ export async function POST(request: Request) {
       const send = (frame: CoachFrame) =>
         controller.enqueue(encoder.encode(`${JSON.stringify(frame)}\n`));
 
-      /* No key configured — go straight to the offline coach rather than
-         failing. Same for any upstream error further down. */
       if (!key) {
         await streamOffline(body, send);
         controller.close();
@@ -56,7 +56,18 @@ export async function POST(request: Request) {
       }
 
       try {
-        await streamLive(body, key, send);
+        // Merge incoming turns with persisted memory
+        const memory = await loadThread(body.context.topicId);
+        const mergedTurns = mergeTurns(memory, body.turns);
+        const requestWithMemory: CoachRequest = { ...body, turns: mergedTurns };
+
+        const finalTurns = await runToolLoop(requestWithMemory, key, send);
+
+        // Persist final thread
+        await saveThread(body.context.topicId, finalTurns);
+
+        // Stream the final response with all tool results already injected
+        await streamLive({ ...body, turns: finalTurns }, key, send);
       } catch (error) {
         const reason = error instanceof Error ? error.message : "unknown error";
         console.error("[coach] live call failed, falling back offline:", reason);
@@ -76,7 +87,84 @@ export async function POST(request: Request) {
   });
 }
 
-async function callDeepSeek(body: CoachRequest, key: string, withThinkingFlag: boolean) {
+/** Merge memory and new turns, avoiding duplicates by role+body. */
+function mergeTurns(memory: CoachTurn[], incoming: CoachTurn[]): CoachTurn[] {
+  const seen = new Set<string>();
+  const out: CoachTurn[] = [];
+  for (const turn of [...memory, ...incoming]) {
+    const key = `${turn.role}:${turn.body}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(turn);
+  }
+  return out;
+}
+
+/** Repeatedly call DeepSeek until it stops calling tools. */
+async function runToolLoop(
+  body: CoachRequest,
+  key: string,
+  send: (frame: CoachFrame) => void,
+  depth = 0,
+): Promise<CoachTurn[]> {
+  if (depth > 3) return body.turns; // safety limit
+
+  const response = await callDeepSeekNonStreaming(body, key);
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`DeepSeek ${response.status}: ${detail.slice(0, 200)}`);
+  }
+
+  const data = (await response.json()) as {
+    choices?: {
+      message?: {
+        content?: string;
+        tool_calls?: {
+          id: string;
+          function: { name: string; arguments: string };
+        }[];
+      };
+    }[];
+  };
+
+  const message = data.choices?.[0]?.message;
+  const content = message?.content ?? "";
+  const toolCalls = message?.tool_calls ?? [];
+
+  if (toolCalls.length === 0) {
+    // No tools — final answer ready
+    if (content.trim()) {
+      return [...body.turns, { role: "coach", body: content.trim() }];
+    }
+    return body.turns;
+  }
+
+  // Append coach turn that issued tool calls
+  const turnsAfterCall: CoachTurn[] = [
+    ...body.turns,
+    { role: "coach", body: content || "Let me check that.", toolCalls: toolCalls.map((t) => ({ id: t.id, function: t.function })) },
+  ];
+
+  // Execute each tool and append tool results as user turns
+  for (const call of toolCalls) {
+    send({ type: "tool_call", call: { id: call.id, function: call.function } });
+    const result = await executeTool({ id: call.id, function: call.function });
+    send({ type: "tool_result", callId: call.id, result: result.result });
+
+    if (result.action) {
+      send({ type: "action", action: result.action });
+    }
+
+    turnsAfterCall.push({
+      role: "student",
+      body: `[tool result for ${call.function.name}]: ${result.result}`,
+    });
+  }
+
+  return runToolLoop({ ...body, turns: turnsAfterCall }, key, send, depth + 1);
+}
+
+async function callDeepSeekNonStreaming(body: CoachRequest, key: string) {
   return fetch(DEEPSEEK_URL, {
     method: "POST",
     headers: {
@@ -86,11 +174,9 @@ async function callDeepSeek(body: CoachRequest, key: string, withThinkingFlag: b
     body: JSON.stringify({
       model: MODEL,
       messages: toChatMessages(body.context, body.turns),
-      // Thinking mode roughly triples latency; a coaching turn doesn't need it.
-      ...(withThinkingFlag ? { thinking: { type: "disabled" } } : {}),
-      stream: true,
+      tools: TOOLS,
       temperature: 0.6,
-      max_tokens: 600,
+      max_tokens: 800,
     }),
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
@@ -101,14 +187,21 @@ async function streamLive(
   key: string,
   send: (frame: CoachFrame) => void,
 ) {
-  let response = await callDeepSeek(body, key, true);
-
-  /* If the account or model rejects the thinking flag, retry once without
-     it rather than dropping the whole session to the offline coach. */
-  if (response.status === 400) {
-    console.warn("[coach] 400 with thinking flag; retrying without it");
-    response = await callDeepSeek(body, key, false);
-  }
+  const response = await fetch(DEEPSEEK_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${key}`,
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      messages: toChatMessages(body.context, body.turns),
+      stream: true,
+      temperature: 0.6,
+      max_tokens: 800,
+    }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
 
   if (!response.ok || !response.body) {
     const detail = await response.text().catch(() => "");
@@ -119,11 +212,10 @@ async function streamLive(
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
-
-  let sse = "";        // unparsed SSE buffer from DeepSeek
-  let full = "";       // everything the model has produced
-  let emitted = 0;     // how much prose we've forwarded
-  let cut = -1;        // index of the sentinel once seen
+  let sse = "";
+  let full = "";
+  let emitted = 0;
+  let cut = -1;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -144,7 +236,7 @@ async function streamLive(
         const parsed = JSON.parse(payload);
         delta = parsed?.choices?.[0]?.delta?.content ?? "";
       } catch {
-        continue; // a partial frame; the next chunk completes it
+        continue;
       }
       if (!delta) continue;
 
@@ -157,7 +249,6 @@ async function streamLive(
           if (found > emitted) send({ type: "token", text: full.slice(emitted, found) });
           emitted = found;
         } else {
-          /* Hold back the tail in case the sentinel is split across chunks. */
           const safe = full.length - (SENTINEL.length - 1);
           if (safe > emitted) {
             send({ type: "token", text: full.slice(emitted, safe) });
