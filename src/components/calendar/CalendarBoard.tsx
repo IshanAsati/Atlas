@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/cn";
 import { IconKey } from "@/components/ui/Key";
 import { Groove, Micro, Panel } from "@/components/ui/Panel";
 import { ChevronIcon } from "@/components/ui/Icons";
 import { useAtlasData } from "@/lib/atlas-context";
+import { DayDetail, type PlannedDay } from "@/components/calendar/DayDetail";
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 const MONTHS = [
@@ -38,7 +39,33 @@ function buildWeeks(year: number, month: number) {
 
 export function CalendarBoard() {
   const { subjects, calendarDays } = useAtlasData();
-  const [cursor, setCursor] = useState({ year: 2026, month: 6 });
+  const today = useMemo(() => new Date(), []);
+  const [cursor, setCursor] = useState({
+    year: today.getFullYear(),
+    month: today.getMonth(),
+  });
+  const [selected, setSelected] = useState<string | null>(null);
+
+  /* The forward plan: which topics sit on which day between now and the
+     papers. Fetched once and clipped client-side as the month changes. */
+  const [schedule, setSchedule] = useState<Record<string, PlannedDay>>({});
+  const [planLoading, setPlanLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/calendar")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: Record<string, PlannedDay> | null) => {
+        if (!cancelled && data) setSchedule(data);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setPlanLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const weeks = useMemo(() => buildWeeks(cursor.year, cursor.month), [cursor]);
 
   const examsByDate = useMemo(() => {
@@ -54,6 +81,11 @@ export function CalendarBoard() {
       if (next > 11) return { year: year + 1, month: 0 };
       return { year, month: next };
     });
+
+  const accentBySubject = useMemo(
+    () => Object.fromEntries(subjects.map((s) => [s.name, s.accent])),
+    [subjects],
+  );
 
   const monthPrefix = `${cursor.year}-${String(cursor.month + 1).padStart(2, "0")}`;
   const monthDays = Object.entries(calendarDays).filter(([k]) => k.startsWith(monthPrefix));
@@ -96,10 +128,12 @@ export function CalendarBoard() {
               <DayCell
                 key={key}
                 day={day}
-                state={record?.state}
-                minutes={record?.minutes}
+                state={record?.state ?? (schedule[key] ? "planned" : undefined)}
+                minutes={record?.minutes ?? schedule[key]?.totalMinutes}
                 exam={exam ? { name: exam.name, accent: exam.accent } : undefined}
                 isToday={isToday}
+                selected={selected === key}
+                onSelect={() => setSelected(selected === key ? null : key)}
               />
             );
           })}
@@ -123,6 +157,22 @@ export function CalendarBoard() {
       </Panel>
 
       <div className="flex flex-col gap-6">
+        <DayDetail
+          date={selected}
+          record={selected ? calendarDays[selected] : undefined}
+          plan={selected ? schedule[selected] : undefined}
+          exam={
+            selected && examsByDate.get(selected)
+              ? {
+                  name: examsByDate.get(selected)!.name,
+                  accent: examsByDate.get(selected)!.accent,
+                }
+              : undefined
+          }
+          accentBySubject={accentBySubject}
+          loading={planLoading}
+        />
+
         <Panel depth="raised" radius="bay" className="p-6">
           <Micro>This month</Micro>
           <Groove className="my-4" />
@@ -167,12 +217,16 @@ function DayCell({
   minutes,
   exam,
   isToday,
+  selected,
+  onSelect,
 }: {
   day: number;
   state?: "complete" | "partial" | "missed" | "planned";
   minutes?: number;
   exam?: { name: string; accent: string };
   isToday: boolean;
+  selected: boolean;
+  onSelect: () => void;
 }) {
   const title = exam
     ? `${exam.name} exam`
@@ -198,6 +252,7 @@ function DayCell({
             ? "bg-linear-145 from-base-hi to-base-lo shadow-raised-sm"
             : "",
         isToday && "shadow-inset from-base-lo to-base-hi bg-linear-145 ring-1 ring-teal/40",
+        selected && "ring-2 ring-teal",
       )}
     >
       <span

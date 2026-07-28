@@ -31,7 +31,14 @@ export async function POST(request: Request) {
   }
 
   const file = formData.get("file") as File | null;
-  if (!file) {
+  /* A photographed syllabus is read by tesseract.js in the browser — the WASM
+     binary and the language data are far too heavy for a serverless function.
+     When that has happened the client posts the recognised text instead of the
+     image, and there is nothing left here to parse. */
+  const rawText = formData.get("text");
+  const providedText = typeof rawText === "string" && rawText.trim() ? rawText : null;
+
+  if (!file && !providedText) {
     return NextResponse.json({ error: "No file provided." }, { status: 400 });
   }
 
@@ -53,14 +60,15 @@ export async function POST(request: Request) {
       }
 
       try {
-        // Extract text from PDF
+        // Extract text from PDF, or take the text the browser already read
         send({ type: "stage", text: "Reading your syllabus..." });
-        const pdfText = await extractText(file);
+        const pdfText = providedText ?? (file ? await extractText(file) : "");
         if (!pdfText.trim()) {
           send({
             type: "error",
-            message:
-              "No text found in that PDF. If it's a scan or a photo, Atlas can't read it yet — try a text-based PDF.",
+            message: providedText
+              ? "Atlas couldn't make out any text in that photo. Try a sharper picture in better light."
+              : "No text found in that PDF. If it's a scan or a photo, Atlas can't read it yet — try a text-based PDF.",
           });
           controller.close();
           return;

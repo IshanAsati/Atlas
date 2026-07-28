@@ -73,6 +73,72 @@ only. Check in DevTools device mode before the demo.
 
 ---
 
+## HANDOVER — 28 July, late. Read this first.
+
+Build, `npx tsc --noEmit` and `npm run lint` are all clean (11 warnings, 0
+errors). Everything below is committed except where marked UNCOMMITTED.
+
+### Fixed since the last pass
+
+| Was broken | Fix |
+|---|---|
+| Every Appwrite read returned nothing | The data layer sent legacy `equal("f","v")` query strings; the SDK builds them as JSON, so the server rejected all of them and `safeList` swallowed it. Now `Query.equal(...)`. **This was the cause of every empty screen.** |
+| Reads capped at 25 rows | Appwrite's default page size. Explicit `Query.limit(500)`. |
+| No topic belonged to any subject | Topics were saved against the extractor's temporary `s1`/`s2` ids while subjects got Appwrite's. Now mapped. |
+| PDFs never read | `pdf-parse` v2 is a class, not a callable; and pdf.js can't find its worker on Vercel. Replaced with a zero-dependency reader, `src/lib/extract/pdf-text.ts`, that inflates content streams with `node:zlib` and decodes subset fonts via `/ToUnicode` (see `pdf-fonts.ts`, `pdf-objects.ts`). pdf.js is now only a fallback. |
+| "Exam is 30 days away" for a date set to tomorrow | Two faults: `daysUntil` defaulted to the frozen demo date, and the client renumbered subjects `s1…` so `PATCH /api/subjects` updated records that don't exist. Both fixed. |
+| Focus/Coach stuck on a skeleton | `DataProvider` was mounted inside `(shell)`, but those routes live outside it. Both providers now sit in the root layout. |
+| New accounts had no profile | Registration never created a `students` document. `getServerStudent` creates it on demand. |
+| One-task missions | The planner skipped every zero-confidence topic after the first — which is all of them on a new syllabus. |
+| Same file twice did nothing | The file input's value wasn't cleared, so no change event fired. |
+
+### UNCOMMITTED work in the tree — finish or revert
+
+Four agents were interrupted mid-task by a spend limit. What survived:
+
+**Settings — looks complete, NOT TESTED IN A BROWSER.**
+`src/app/(shell)/settings/page.tsx`, `src/components/settings/*` (5 files),
+`src/app/api/documents/route.ts`, `deleteSyllabus()` appended to `data.ts`,
+and a `/settings` link on the rail avatar. Verify: details save, logout works,
+syllabus replace and remove work.
+
+**Calendar — wired by me, NOT TESTED IN A BROWSER.**
+`DayDetail.tsx` + `generateSchedule()` in `data.ts` + `/api/calendar` were
+written by the agent; I connected them to `CalendarBoard` (day cells are now
+selectable, detail panel renders, planned days get a pip). Verify the schedule
+actually distributes topics across days before each exam.
+
+**OCR — HALF DONE, THIS IS THE ONE THAT NEEDS WORK.**
+`tesseract.js` is installed, `src/lib/extract/ocr.ts` exists
+(`ocrImage`, `isImageFile`, `MIN_OCR_CHARS`), and `/api/extract` already
+accepts a `text` form field instead of a file. But `Onboarding.tsx` imports
+those helpers and **never calls them** — hence the unused-var warnings. To
+finish: on an image pick, call `ocrImage(file, setOcrPercent)`, feed progress
+into the existing `stages`/`stageIndex` UI, POST the text as `text`, and error
+via `extractError` if under `MIN_OCR_CHARS`. Also widen the file input's
+`accept` and fix the copy that says a photo won't work.
+
+### Not started
+
+- **Coach UI redesign** (ChatGPT/Claude-style column) and **coach on the
+  dashboard**. That agent died before writing anything. Files it was to own:
+  `CoachPanel.tsx`, `CoachScreen.tsx`, a new `CoachDock.tsx`, `(shell)/page.tsx`.
+- The hardcoded onboarding line *"At 120 minutes a day, Atlas can cover all
+  four papers before the first exam on 14 Aug…"* — still static, in
+  `Onboarding.tsx` step 3. Should compute from the real subjects and today.
+
+### Biggest remaining risk
+
+`/progress` is **entirely placeholder data** — it imports `momentumHistory`,
+`weeklyMinutes`, `subjectConfidence` straight from `mock.ts`. It looks
+finished, which makes it the worst screen to linger on in a demo. Needs a
+`GET /api/progress` (item 25.3 below).
+
+Also: accounts created before the query fix hold orphaned records. Sign up
+fresh rather than trying to repair one.
+
+---
+
 ## Known gaps and planned features
 
 ### 1. Coach memory persists only per-topic, not per-user across topics

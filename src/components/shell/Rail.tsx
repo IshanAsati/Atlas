@@ -77,12 +77,20 @@ export function Rail() {
 
         <div className="flex flex-col items-center gap-4">
           <ThemeToggle />
+          {/* Settings lives on the avatar rather than a seventh dock key —
+              six labels already fill a 375px phone. */}
           <Link
-            href="/onboarding"
-            className="grid size-11 place-items-center rounded-full bg-linear-145 from-base-hi to-base-lo shadow-raised transition-shadow hover:shadow-raised-lg"
-            aria-label="Account and setup"
+            href="/settings"
+            aria-current={isActive("/settings") ? "page" : undefined}
+            className={cn(
+              "grid size-11 place-items-center rounded-full transition-shadow",
+              isActive("/settings")
+                ? "bg-linear-145 from-base-lo to-base-hi text-teal shadow-inset"
+                : "bg-linear-145 from-base-hi to-base-lo text-ink-2 shadow-raised hover:shadow-raised-lg",
+            )}
+            aria-label="Settings"
           >
-            <span className="font-display text-[0.8rem] font-semibold text-ink-2">A</span>
+            <span className="font-display text-[0.8rem] font-semibold">A</span>
           </Link>
         </div>
       </nav>

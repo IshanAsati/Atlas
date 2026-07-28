@@ -488,3 +488,204 @@ export async function generateMission(
     tasks: tasks.map((t, i) => ({ ...t, id: `mt${i + 1}` })),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Forward schedule — which topics land on which day between now and the papers
+// ---------------------------------------------------------------------------
+
+export interface PlannedTopic {
+  id: string;
+  name: string;
+  subject: string;
+  minutes: number;
+}
+
+export interface PlannedDay {
+  topics: PlannedTopic[];
+  totalMinutes: number;
+}
+
+/** Local-calendar ISO date. `toISOString` would shift the day either side of UTC. */
+function isoDate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+/** The date `offset` days after `start`, counted in whole local days. */
+function isoPlus(start: Date, offset: number): string {
+  return isoDate(new Date(start.getFullYear(), start.getMonth(), start.getDate() + offset));
+}
+
+/**
+ * The same priority score the daily mission uses, so a topic that the
+ * mission would pull forward is also the one the calendar places first.
+ * Kept as a separate function rather than shared out of `generateMission`
+ * so that planner isn't disturbed.
+ */
+function planScore(topic: Topic, examInDays: number): number {
+  let score = 0;
+  if (topic.confidence < 30) score += 40;
+  else if (topic.confidence < 60) score += 20;
+  if (topic.lastSeenDays > 7) score += 30;
+  if (examInDays < 7) score += 25;
+  else if (examInDays < 14) score += 15;
+  return score;
+}
+
+/** Session length by confidence — the mission planner's own three bands. */
+function plannedMinutes(confidence: number): number {
+  if (confidence < 40) return 35;
+  if (confidence < 70) return 28;
+  return 20;
+}
+
+/**
+ * Spreads every topic across the days between today and its paper.
+ *
+ * The rule, in order:
+ *  1. A topic's deadline is the day before its subject's exam. Subjects whose
+ *     paper has already been sat drop out — there is nothing left to plan for.
+ *  2. Topics are queued by deadline first, so whatever is examined soonest is
+ *     placed soonest, then by the mission planner's priority score, so within
+ *     one paper the weakest and stalest topics come first.
+ *  3. Each topic takes the earliest day that still has room in the daily
+ *     budget. If no day before the paper has room, it goes on the deadline day
+ *     anyway and that day runs long — every topic gets a slot before its paper.
+ *
+ * The daily budget is the student's study time less the 15 minutes the mission
+ * planner also holds back for breaks.
+ *
+ * `from`/`to` clip the result; the plan itself is always computed from today so
+ * asking for a later month returns the same days it would have anyway.
+ */
+export async function generateSchedule(
+  from?: string,
+  to?: string,
+  studyTime?: number,
+): Promise<Record<string, PlannedDay>> {
+  const [allTopics, allSubjects] = await Promise.all([
+    getServerTopics(),
+    getServerSubjects(),
+  ]);
+  if (!allTopics.length || !allSubjects.length) return {};
+
+  let dailyMinutes = studyTime;
+  if (!dailyMinutes) {
+    const student = await getServerStudent();
+    dailyMinutes = student?.studyTime ?? 120;
+  }
+  const budget = Math.max(30, dailyMinutes - 15);
+
+  const start = new Date();
+
+  const queue = allTopics
+    .map((topic) => {
+      const subject = allSubjects.find((s) => s.id === topic.subjectId);
+      const examInDays = subject ? daysUntil(subject.examDate, start) : 999;
+      return {
+        topic,
+        subjectName: subject?.name ?? "General",
+        examInDays,
+        deadline: Math.max(0, examInDays - 1),
+        score: planScore(topic, examInDays),
+      };
+    })
+    .filter((item) => item.examInDays >= 0)
+    .sort(
+      (a, b) =>
+        a.deadline - b.deadline ||
+        b.score - a.score ||
+        a.topic.name.localeCompare(b.topic.name),
+    );
+
+  const minutesUsed: number[] = [];
+  const byOffset = new Map<number, PlannedTopic[]>();
+
+  for (const item of queue) {
+    const minutes = plannedMinutes(item.topic.confidence);
+
+    let offset = item.deadline;
+    for (let d = 0; d <= item.deadline; d += 1) {
+      if ((minutesUsed[d] ?? 0) + minutes <= budget) {
+        offset = d;
+        break;
+      }
+    }
+
+    minutesUsed[offset] = (minutesUsed[offset] ?? 0) + minutes;
+    const slot = byOffset.get(offset) ?? [];
+    slot.push({
+      id: item.topic.id,
+      name: item.topic.name,
+      subject: item.subjectName,
+      minutes,
+    });
+    byOffset.set(offset, slot);
+  }
+
+  const schedule: Record<string, PlannedDay> = {};
+  const offsets = Array.from(byOffset.keys()).sort((a, b) => a - b);
+  for (const offset of offsets) {
+    const date = isoPlus(start, offset);
+    if (from && date < from) continue;
+    if (to && date > to) continue;
+    const topics = byOffset.get(offset)!;
+    schedule[date] = {
+      topics,
+      totalMinutes: topics.reduce((sum, t) => sum + t.minutes, 0),
+    };
+  }
+
+  return schedule;
+}
+
+// ---------------------------------------------------------------------------
+// Syllabus removal
+// ---------------------------------------------------------------------------
+
+/**
+ * Clear the student's syllabus — every subject and the topics under it, or a
+ * single subject when an id is given.
+ *
+ * `saveExtractedSubjects` only ever replaces one syllabus with another, so
+ * until now there was no way to end up with none. Settings needs that: a
+ * student who uploaded the wrong PDF should be able to empty the account and
+ * start again rather than live with someone else's subjects.
+ *
+ * Topics go first. Deleting the subject first and then failing on its topics
+ * would leave orphans the graph and the planner would still try to schedule.
+ */
+export async function deleteSyllabus(
+  subjectId?: string,
+): Promise<{ subjects: number; topics: number }> {
+  if (!process.env.APPWRITE_SECRET_KEY) {
+    throw new Error("APPWRITE_SECRET_KEY is not set — nothing can be deleted.");
+  }
+  const sid = await resolveStudentId();
+  if (!sid) throw new Error("No signed-in student — can't remove the syllabus.");
+
+  const d = await db();
+  const Query = await Q();
+  const allSubjects = await safeList<Subject>(COLLECTIONS.subjects, [
+    Query.equal("studentId", sid),
+    Query.limit(PAGE_LIMIT),
+  ]);
+  const allTopics = await safeList<Topic>(COLLECTIONS.topics, [
+    Query.equal("studentId", sid),
+    Query.limit(PAGE_LIMIT),
+  ]);
+
+  const subs = subjectId ? allSubjects.filter((s) => s.id === subjectId) : allSubjects;
+  if (subjectId && subs.length === 0) {
+    throw new Error("That subject is no longer in your syllabus.");
+  }
+  const tops = subjectId ? allTopics.filter((t) => t.subjectId === subjectId) : allTopics;
+
+  for (const t of tops) {
+    await d.deleteDocument(DB_ID, COLLECTIONS.topics, t.id);
+  }
+  for (const s of subs) {
+    await d.deleteDocument(DB_ID, COLLECTIONS.subjects, s.id);
+  }
+
+  return { subjects: subs.length, topics: tops.length };
+}

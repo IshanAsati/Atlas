@@ -13,8 +13,18 @@ import type { Subject } from "@/lib/mock";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useAtlasData } from "@/lib/atlas-context";
 import { LoginForm } from "@/components/auth/LoginForm";
+import { MIN_OCR_CHARS, isImageFile, ocrImage } from "@/lib/extract/ocr";
 
 const STEPS = ["Syllabus", "Confirm", "Time"];
+
+/* The four stages the extraction route streams back. A photo adds one more in
+   front of them, for the OCR pass that happens here in the browser. */
+const SERVER_STAGES = [
+  "Reading your syllabus...",
+  "Finding units and chapters",
+  "Matching exam dates",
+  "Building your topic graph",
+];
 
 const PRESETS = [45, 60, 90, 120, 150];
 
@@ -32,13 +42,12 @@ export function Onboarding() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState(0);
   const [reading, setReading] = useState(false);
-  const [stages, setStages] = useState<string[]>([
-    "Reading your syllabus...",
-    "Finding units and chapters",
-    "Matching exam dates",
-    "Building your topic graph",
-  ]);
+  const [stages, setStages] = useState<string[]>(SERVER_STAGES);
   const [stageIndex, setStageIndex] = useState(0);
+  /* Fraction of the first stage that OCR has finished, so the same bar moves
+     while the photo is being read instead of sitting still. Null once the
+     text is out and the server takes over. */
+  const [ocrPercent, setOcrPercent] = useState<number | null>(null);
   const [studyTime, setStudyTime] = useState(120);
   const [editingSubject, setEditingSubject] = useState<string | null>(null);
   /* Never pre-filled with sample data. The old version seeded this from
