@@ -1,0 +1,38 @@
+import { NextResponse } from "next/server";
+import { getServerTopics, updateTopicConfidence } from "@/lib/data";
+
+export const dynamic = "force-dynamic";
+
+/**
+ * GET  /api/topics?subjectId=...  → list topics (optionally filtered)
+ * PATCH /api/topics/:id           → update a topic's confidence
+ */
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const subjectId = searchParams.get("subjectId") ?? undefined;
+
+  try {
+    const topics = await getServerTopics(subjectId);
+    return NextResponse.json(topics);
+  } catch (error) {
+    console.error("[topics] GET error:", error);
+    return NextResponse.json({ error: "Failed to load topics." }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const body = await request.json();
+    const { topicId, confidence } = body;
+    if (!topicId) {
+      return NextResponse.json({ error: "topicId required." }, { status: 400 });
+    }
+    if (typeof confidence === "number") {
+      await updateTopicConfidence(topicId, confidence);
+    }
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("[topics] PATCH error:", error);
+    return NextResponse.json({ error: "Failed to update topic." }, { status: 500 });
+  }
+}

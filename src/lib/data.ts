@@ -22,6 +22,8 @@ import {
   topics as mockTopics,
   mission as mockMission,
   calendarDays as mockCalendarDays,
+  daysUntil,
+  TODAY,
   type Subject,
   type Topic,
   type MissionTask,
@@ -240,4 +242,100 @@ export async function saveMission(
       order: i,
     });
   }
+}
+
+// ---------------------------------------------------------------------------
+// Pipeline 2 — Rule-based mission planner
+// ---------------------------------------------------------------------------
+
+/**
+ * Generates a daily mission from the current topic states.
+ *
+ * Priority score per topic:
+ *   confidence < 30           → +40
+ *   confidence < 60           → +20
+ *   lastSeenDays > 7          → +30
+ *   examInDays < 7            → +25
+ *   examInDays < 14           → +15
+ *
+ * Selects top topics until the daily time budget is filled.
+ * Assigns kind: "learn" (confidence < 40), "quiz" (40–70), "revise" (≥ 70).
+ */
+export async function generateMission(
+  date: string = new Date().toISOString().slice(0, 10),
+  studyTime: number = 120,
+): Promise<ServerMission> {
+  const allTopics = await getServerTopics();
+  const allSubjects = await getServerSubjects();
+
+  interface ScoredTopic {
+    topic: Topic;
+    subject: Subject | undefined;
+    score: number;
+  }
+
+  const scored: ScoredTopic[] = allTopics.map((topic) => {
+    const subject = allSubjects.find((s) => s.id === topic.subjectId);
+    const examInDays = subject ? daysUntil(subject.examDate, TODAY) : 999;
+    let score = 0;
+    if (topic.confidence < 30) score += 40;
+    else if (topic.confidence < 60) score += 20;
+    if (topic.lastSeenDays > 7) score += 30;
+    if (examInDays < 7) score += 25;
+    else if (examInDays < 14) score += 15;
+    return { topic, subject, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+
+  const tasks: Omit<MissionTask, "id">[] = [];
+  let minutesUsed = 0;
+  const remaining = studyTime - 15; // reserve 15 min for a warm-up
+
+  for (const { topic, subject } of scored) {
+    if (minutesUsed >= remaining) break;
+    if (topic.confidence === 0 && tasks.length > 0) continue; // skip untouched if we already have something
+
+    let minutes: number;
+    if (topic.confidence < 40) minutes = 35;
+    else if (topic.confidence < 70) minutes = 28;
+    else minutes = 20;
+
+    if (minutesUsed + minutes > remaining + 15) {
+      minutes = Math.max(15, remaining - minutesUsed);
+      if (minutes <= 0) break;
+    }
+
+    const kind: MissionTask["kind"] =
+      topic.confidence < 40 ? "learn" : topic.confidence < 70 ? "quiz" : "revise";
+
+    const reasons = {
+      learn: `New topic — confidence is 0%. Build the base idea first.`,
+      quiz: `Confidence is ${topic.confidence}%. A quick quiz will test what's stuck.`,
+      revise: `Confidence fell to ${topic.confidence}%. The ${subject?.name ?? "paper"} is ${subject ? daysUntil(subject.examDate, TODAY) : "?"} days out.`,
+    };
+
+    tasks.push({
+      topicId: topic.id,
+      topic: topic.name,
+      subject: subject?.name ?? "General",
+      reason: reasons[kind],
+      minutes,
+      status: tasks.length === 0 ? "active" : "pending",
+      kind,
+    });
+    minutesUsed += minutes;
+  }
+
+  const totalMinutes = tasks.reduce((sum, t) => sum + t.minutes, 0);
+  const missionId = `m-${date}`;
+
+  await saveMission(date, totalMinutes, tasks);
+
+  return {
+    id: missionId,
+    date,
+    totalMinutes,
+    tasks: tasks.map((t, i) => ({ ...t, id: `mt${i + 1}` })),
+  };
 }

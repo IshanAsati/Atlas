@@ -40,7 +40,7 @@ three pipelines have live paths with offline fallbacks.
 | Pipeline | Status |
 |---|---|
 | Pipeline 1 — syllabus extraction | **Real.** `src/app/api/extract/route.ts` — streaming DeepSeek call, PDF text extraction via `pdf-parse`, structured JSON output saved to Appwrite. Falls back to seed data on failure. |
-| Pipeline 2 — mission planner | **Not built.** `mission` in `src/lib/mock.ts` is hand-written. Rule-based priority scoring algorithm designed but not yet wired. |
+| Pipeline 2 — mission planner | **Real.** `src/lib/data.ts` → `generateMission()` — rule-based priority scoring (confidence + decay + exam distance). API at `src/app/api/mission/route.ts` (GET/POST/PATCH). Wired for server-side calls. |
 | Pipeline 3 — AI coach | **Real.** Live `deepseek-v4-flash` call, streaming NDJSON, with structured evaluation. Rule-based offline fallback. Verified LIVE via `npm run check:coach`. |
 
 **Persistence:** Appwrite — 6 collections (`students`, `subjects`, `topics`, `missions`,
@@ -96,20 +96,14 @@ All previously dead controls now have handlers:
 The wrong-answer beat must be muscle memory. Watch for anything that only works
 when the tab has been open a while.
 
-### 2. Wire Pipeline 2 — mission planner
-
-Rule-based priority scoring algorithm is designed in the plan. Build it into
-`src/lib/data.ts` → `generateMission()` and wire `src/app/api/mission/route.ts`.
-
-### 3. Test Pipeline 1 with a real syllabus PDF
+### 2. Test Pipeline 1 with a real syllabus PDF
 
 Upload a CBSE Class 10 syllabus, verify subjects/topics/dates come back correctly,
 tune the extraction prompt if needed.
 
-### 4. After the fest, not before
+### 3. After the fest, not before
 
-Appwrite confidence persistence (the `/api/topics` route), Appwrite auth, spaced
-repetition from the decay curve, mobile apps. None of these earn a mark on 29 July
+Appwrite auth, spaced repetition from the decay curve, mobile apps. None of these earn a mark on 29 July
 and all of them can break something that currently works.
 
 ---

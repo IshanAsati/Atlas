@@ -51,9 +51,17 @@ export function applyConfidenceDelta(topicId: string, delta: number) {
   hydrate();
   const seed = seedTopics.find((t) => t.id === topicId)?.confidence ?? 0;
   const current = overrides[topicId] ?? seed;
-  overrides = { ...overrides, [topicId]: Math.max(0, Math.min(100, current + delta)) };
+  const clamped = Math.max(0, Math.min(100, current + delta));
+  overrides = { ...overrides, [topicId]: clamped };
   persist();
   listeners.forEach((fn) => fn());
+
+  // Persist to Appwrite in the background — fire-and-forget
+  fetch(`/api/topics`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ topicId, confidence: clamped }),
+  }).catch(() => { /* offline — sessionStorage still holds the value */ });
 }
 
 export function resetConfidence() {
