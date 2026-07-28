@@ -39,15 +39,29 @@ export function Onboarding() {
   const [stageIndex, setStageIndex] = useState(0);
   const [studyTime, setStudyTime] = useState(120);
   const [editingSubject, setEditingSubject] = useState<string | null>(null);
-  const [extractedSubjects, setExtractedSubjects] = useState<Subject[]>(seedSubjects);
-  const [extractedTopicCount, setExtractedTopicCount] = useState(4); // track actual count
+  /* Never pre-filled with sample data. The old version seeded this from
+     mock.ts, so a failed extraction still showed "Found 4 subjects" and the
+     student had no way to know their PDF was never read. */
+  const [extractedSubjects, setExtractedSubjects] = useState<Subject[]>([]);
+  const [topicCounts, setTopicCounts] = useState<Record<string, number>>({});
+  const [usingSample, setUsingSample] = useState(false);
+  const [extractError, setExtractError] = useState<string | null>(null);
   const [buildingMission, setBuildingMission] = useState(false);
-  const [subjectDates, setSubjectDates] = useState(
-    Object.fromEntries(seedSubjects.map((s) => [s.id, s.examDate])),
-  );
+  const [subjectDates, setSubjectDates] = useState<Record<string, string>>({});
+
+  const loadSample = () => {
+    setUsingSample(true);
+    setExtractError(null);
+    setExtractedSubjects(seedSubjects);
+    setTopicCounts(Object.fromEntries(seedSubjects.map((s) => [s.id, 4])));
+    setSubjectDates(Object.fromEntries(seedSubjects.map((s) => [s.id, s.examDate])));
+    setStep(1);
+  };
 
   const handleFile = async (file: File) => {
     setReading(true);
+    setExtractError(null);
+    setUsingSample(false);
     setStageIndex(0);
     setStages(["Reading your syllabus...", "Finding units and chapters", "Matching exam dates", "Building your topic graph"]);
 
@@ -58,8 +72,8 @@ export function Onboarding() {
       const response = await fetch("/api/extract", { method: "POST", body: formData });
 
       if (!response.ok || !response.body) {
-        setStageIndex(4);
-        setTimeout(() => { setReading(false); setStep(1); }, 400);
+        setReading(false);
+        setExtractError("Atlas couldn't start reading that file. Try again.");
         return;
       }
 
@@ -67,6 +81,8 @@ export function Onboarding() {
       const decoder = new TextDecoder();
       let buffer = "";
       let resultSubjects: Subject[] | null = null;
+      let resultCounts: Record<string, number> = {};
+      let failure: string | null = null;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -92,31 +108,49 @@ export function Onboarding() {
               });
               setStageIndex((s) => s + 1);
             }
+            if (frame.type === "error") {
+              failure = frame.message ?? "Extraction failed.";
+            }
             if (frame.type === "result" && frame.subjects) {
               resultSubjects = frame.subjects.map((s: Omit<Subject, "id">, i: number) => ({
                 ...s,
                 id: `s${i + 1}`,
                 accent: (["teal", "amber", "rust"] as const)[i % 3],
               }));
-              // Track actual topic count from the extracted result
-              if (frame.topics && Array.isArray(frame.topics)) {
-                setExtractedTopicCount(frame.topics.length);
+              /* Count per subject, not one number reused for all of them. */
+              if (Array.isArray(frame.topics)) {
+                resultCounts = {};
+                for (const t of frame.topics as Array<{ subjectId?: string }>) {
+                  if (!t?.subjectId) continue;
+                  resultCounts[t.subjectId] = (resultCounts[t.subjectId] ?? 0) + 1;
+                }
               }
             }
           } catch { /* partial frame */ }
         }
       }
 
-      if (resultSubjects && resultSubjects.length > 0) {
-        setExtractedSubjects(resultSubjects);
-        setSubjectDates(Object.fromEntries(resultSubjects.map((s) => [s.id, s.examDate])));
+      if (failure) {
+        setReading(false);
+        setExtractError(failure);
+        return;
       }
-    } catch {
-      // Network error — use seed data
-    }
 
-    setReading(false);
-    setStep(1);
+      if (!resultSubjects || resultSubjects.length === 0) {
+        setReading(false);
+        setExtractError("Atlas didn't find any subjects in that file.");
+        return;
+      }
+
+      setExtractedSubjects(resultSubjects);
+      setTopicCounts(resultCounts);
+      setSubjectDates(Object.fromEntries(resultSubjects.map((s) => [s.id, s.examDate])));
+      setReading(false);
+      setStep(1);
+    } catch {
+      setReading(false);
+      setExtractError("Lost the connection while reading. Check your network and try again.");
+    }
   };
 
   const triggerFile = () => fileInputRef.current?.click();
@@ -302,9 +336,41 @@ export function Onboarding() {
                 </AnimatePresence>
               </button>
 
-              <p className="micro mt-6 text-ink-3">
-                No syllabus handy? <span className="text-teal-deep">Pick your board instead</span>
-              </p>
+              {extractError ? (
+                <div className="mt-6 rounded-key bg-amber-wash/70 px-4 py-3.5" role="alert">
+                  <p className="flex items-start gap-2.5 text-[0.85rem] leading-snug text-amber-deep">
+                    <span aria-hidden className="mt-1.5 size-1.5 shrink-0 rounded-full bg-amber" />
+                    {extractError}
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-4 pl-4">
+                    <button
+                      type="button"
+                      onClick={triggerFile}
+                      className="micro text-ink-2 underline underline-offset-4 hover:text-ink"
+                    >
+                      Try another file
+                    </button>
+                    <button
+                      type="button"
+                      onClick={loadSample}
+                      className="micro text-ink-3 underline underline-offset-4 hover:text-ink-2"
+                    >
+                      Continue with a sample syllabus
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="micro mt-6 text-ink-3">
+                  No syllabus handy?{" "}
+                  <button
+                    type="button"
+                    onClick={loadSample}
+                    className="text-teal-deep underline underline-offset-4"
+                  >
+                    Use a sample Class 10 syllabus
+                  </button>
+                </p>
+              )}
             </Stage>
           )}
 
@@ -317,6 +383,13 @@ export function Onboarding() {
                 Check the dates. Tap any of them to correct it — everything else is
                 already in place.
               </p>
+
+              {usingSample ? (
+                <p className="micro mt-4 inline-flex items-center gap-2 rounded-full bg-linear-145 from-base-lo to-base-hi px-3.5 py-2 text-ink-2 shadow-inset">
+                  <span aria-hidden className="size-1.5 rounded-full bg-amber" />
+                  Sample syllabus — not read from a file
+                </p>
+              ) : null}
 
               <Panel depth="raised" radius="bay" className="mt-8 divide-y divide-hairline p-2">
                 {extractedSubjects.map((subject) => (
@@ -334,8 +407,10 @@ export function Onboarding() {
                           {subject.name}
                         </span>
                         <Micro className="mt-1 block">
-                          {subject.discipline}{" "}
-                          {extractedTopicCount > 0 ? `· ${extractedTopicCount} topics found` : ""}
+                          {subject.discipline}
+                          {topicCounts[subject.id]
+                            ? ` · ${topicCounts[subject.id]} ${topicCounts[subject.id] === 1 ? "topic" : "topics"}`
+                            : ""}
                         </Micro>
                       </span>
                     </span>

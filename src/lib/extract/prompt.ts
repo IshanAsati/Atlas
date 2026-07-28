@@ -1,10 +1,8 @@
-import { SENTINEL } from "@/lib/coach/types";
-
 /**
  * The extraction prompt tells DeepSeek to find subjects, units, and dates
  * in a CBSE/ICSE syllabus PDF and return structured data.
  */
-export function extractionPrompt(text: string): string {
+export function extractionPrompt(): string {
   return `You are a curriculum parser for Indian school board syllabi (CBSE, ICSE, state boards). 
 
 Given the text of a syllabus document below, extract:
@@ -40,9 +38,5 @@ Rules:
 - Do not invent topics. Only include what's actually in the text
 - Do not include mark allocations or page numbers
 
-After the JSON, output on its own line exactly:
-${SENTINEL}DONE
-
-Syllabus text:
-${text.slice(0, 60_000)}`;
+Return only the JSON object. No commentary, no markdown fence.`;
 }
