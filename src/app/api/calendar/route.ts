@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generateSchedule } from "@/lib/data";
+import { generateSchedule, getAllCalendarDays, logStudyMinutes } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +16,17 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
+
+  /* ?days=1 returns what has actually been studied, rather than the plan. */
+  if (searchParams.get("days")) {
+    try {
+      return NextResponse.json(await getAllCalendarDays());
+    } catch (error) {
+      console.error("[calendar] days error:", error);
+      return NextResponse.json({}, { status: 200 });
+    }
+  }
+
   const from = searchParams.get("from");
   const to = searchParams.get("to");
 
@@ -32,5 +43,32 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error("[calendar] GET error:", error);
     return NextResponse.json({ error: "Failed to plan the calendar." }, { status: 500 });
+  }
+}
+
+/**
+ * PATCH /api/calendar { date, minutes } → log a finished study session.
+ *
+ * This is what turns a Pomodoro into a day on the calendar, a day streak and
+ * momentum. Minutes sum, so several sessions in a day add up.
+ */
+export async function PATCH(request: Request) {
+  try {
+    const body = (await request.json()) as { date?: string; minutes?: number };
+    const date = body.date ?? new Date().toISOString().slice(0, 10);
+    const minutes = Number(body.minutes);
+
+    if (!ISO_DATE.test(date) || !Number.isFinite(minutes) || minutes <= 0) {
+      return NextResponse.json(
+        { error: "A date and a positive number of minutes are required." },
+        { status: 400 },
+      );
+    }
+
+    const day = await logStudyMinutes(date, Math.round(minutes));
+    return NextResponse.json(day ?? { error: "Not saved." }, { status: day ? 200 : 500 });
+  } catch (error) {
+    console.error("[calendar] PATCH error:", error);
+    return NextResponse.json({ error: "Failed to log the session." }, { status: 500 });
   }
 }

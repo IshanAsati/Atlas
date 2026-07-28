@@ -9,6 +9,7 @@ import { Groove, Micro, Panel } from "@/components/ui/Panel";
 import { ThemeToggle } from "@/components/shell/ThemeToggle";
 import { ArrowIcon, AtlasMark, CheckIcon, UploadIcon } from "@/components/ui/Icons";
 import { subjects as seedSubjects } from "@/lib/mock";
+import { daysUntil } from "@/lib/mock";
 import type { Subject } from "@/lib/mock";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useAtlasData } from "@/lib/atlas-context";
@@ -198,6 +199,46 @@ export function Onboarding() {
       setExtractError("Lost the connection while reading. Check your network and try again.");
     }
   };
+
+  /* What {studyTime} a day actually buys, worked out from the subjects that
+     were just extracted and the real date — this used to be a fixed sentence
+     about four papers and 14 Aug regardless of what the student uploaded. */
+  const coverage = (() => {
+    const dated = extractedSubjects
+      .map((s) => ({ name: s.name, days: daysUntil(subjectDates[s.id] ?? s.examDate) }))
+      .filter((s) => Number.isFinite(s.days) && s.days > 0)
+      .sort((a, b) => a.days - b.days);
+
+    const topicTotal = Object.values(topicCounts).reduce((sum, n) => sum + n, 0);
+    const papers = extractedSubjects.length;
+    const paperWord = papers === 1 ? "paper" : "papers";
+
+    if (!dated.length) {
+      return `At ${studyTime} minutes a day you'll get through roughly ${Math.round((studyTime / 30) * 7)} topics a week. Add an exam date and Atlas will pace the whole syllabus against it.`;
+    }
+
+    const first = dated[0];
+    /* ~30 min a topic for a first pass, so this many topics fit before the
+       nearest paper. */
+    const capacity = Math.floor((first.days * studyTime) / 30);
+    const passes = topicTotal > 0 ? Math.floor(capacity / topicTotal) : 0;
+
+    const when = new Date(`${subjectDates[extractedSubjects.find((s) => s.name === first.name)?.id ?? ""] ?? ""}T00:00:00`);
+    const whenLabel = Number.isNaN(when.getTime())
+      ? `in ${first.days} days`
+      : `on ${when.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
+
+    if (topicTotal === 0) {
+      return `At ${studyTime} minutes a day, that's ${first.days} days of study before ${first.name} ${whenLabel}.`;
+    }
+    if (passes >= 2) {
+      return `At ${studyTime} minutes a day, Atlas can cover all ${papers} ${paperWord} before ${first.name} ${whenLabel}, with room for ${passes === 2 ? "two" : `${passes}`} revision passes.`;
+    }
+    if (passes === 1) {
+      return `At ${studyTime} minutes a day, Atlas can get through your ${topicTotal} topics once before ${first.name} ${whenLabel}. A little longer each day would buy you a revision pass.`;
+    }
+    return `${first.name} is only ${first.days} days out. At ${studyTime} minutes a day Atlas will prioritise the weakest topics — it can't cover all ${topicTotal} before then.`;
+  })();
 
   /* Reading a photo happens entirely in the browser and can take a while,
      during which no server stage arrives — so the bar would otherwise sit
@@ -573,12 +614,7 @@ export function Onboarding() {
 
               <Groove className="my-8" />
 
-              <p className="text-[0.9rem] leading-relaxed text-ink-2">
-                At {studyTime} minutes a day, Atlas can cover all four papers before
-                the first exam on{" "}
-                <span className="font-medium text-ink">14 Aug</span> with room for two
-                revision passes.
-              </p>
+              <p className="text-[0.9rem] leading-relaxed text-ink-2">{coverage}</p>
 
               <div className="mt-8 flex items-center gap-3">
                 <Key size="lg" tone="quiet" onClick={() => setStep(1)}>

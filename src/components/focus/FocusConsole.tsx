@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
@@ -36,7 +36,7 @@ export function FocusConsole() {
 
   /* Read the shared context rather than fetching separately — two callers
      racing /api/mission is how the two screens drifted out of step. */
-  const { mission, loading } = useAtlasData();
+  const { mission, loading, refresh } = useAtlasData();
   const missionTasks: MissionTask[] = mission?.tasks ?? [];
   const missionLoaded = !loading;
 
@@ -86,6 +86,26 @@ export function FocusConsole() {
     return () => clearInterval(id);
   }, [ticking]);
 
+  /* A finished session is the only thing that ever writes to the calendar,
+     which is what the day streak and momentum are computed from. Declared
+     before the phase effect that calls it. */
+  const logSession = useCallback(
+    (minutes: number) => {
+      if (minutes <= 0) return;
+      fetch("/api/calendar", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: new Date().toISOString().slice(0, 10), minutes }),
+      })
+        .then(() => refresh())
+        .catch(() => {
+          /* Offline — the session still counted for the student, just not
+             yet on the record. */
+        });
+    },
+    [refresh],
+  );
+
   /* The phase boundary is an event from the clock, not a render cascade:
      the countdown reaching zero is exactly when work becomes rest. */
   useEffect(() => {
@@ -106,8 +126,9 @@ export function FocusConsole() {
       setOnBreak(true);
       setLeft(breakDuration);
       chime("break");
+      logSession(Math.round(sessionDuration / 60));
     }
-  }, [finished, onBreak, done, sessionCount, repetitions, sessionDuration, breakDuration, chime]);
+  }, [finished, onBreak, done, sessionCount, repetitions, sessionDuration, breakDuration, chime, logSession]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const handlePlayPause = () => {

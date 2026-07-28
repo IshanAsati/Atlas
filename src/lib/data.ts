@@ -689,3 +689,100 @@ export async function deleteSyllabus(
 
   return { subjects: subs.length, topics: tops.length };
 }
+
+// ---------------------------------------------------------------------------
+// Study log — what closes the loop
+// ---------------------------------------------------------------------------
+
+/**
+ * Record minutes studied on a day, summing into whatever is already there.
+ *
+ * Without this nothing a student actually does reaches the calendar, so the
+ * streak sat at zero and momentum stayed at its seed value no matter how many
+ * sessions they ran.
+ */
+export async function logStudyMinutes(date: string, minutes: number) {
+  if (!process.env.APPWRITE_SECRET_KEY) return null;
+  const sid = await resolveStudentId();
+  if (!sid || minutes <= 0) return null;
+
+  const student = await getServerStudent();
+  const target = student?.studyTime ?? 120;
+
+  const Query = await Q();
+  const existing = await safeList<CalendarDay>(COLLECTIONS.calendarDays, [
+    Query.equal("studentId", sid),
+    Query.equal("date", date),
+  ]);
+
+  const total = (existing[0]?.minutes ?? 0) + minutes;
+  const state: CalendarDay["state"] = total >= target ? "complete" : "partial";
+
+  try {
+    const d = await db();
+    if (existing[0]) {
+      await d.updateDocument(DB_ID, COLLECTIONS.calendarDays, existing[0].id, {
+        minutes: total,
+        state,
+      });
+    } else {
+      await d.createDocument(DB_ID, COLLECTIONS.calendarDays, await genId(), {
+        studentId: sid,
+        date,
+        minutes: total,
+        state,
+      });
+    }
+  } catch (error) {
+    console.error("[data] could not log study minutes:", error);
+    return null;
+  }
+
+  return { date, minutes: total, state };
+}
+
+/** Every day on record, as the map the client reads. */
+export async function getAllCalendarDays(): Promise<
+  Record<string, { state: CalendarDay["state"]; minutes?: number }>
+> {
+  const sid = await resolveStudentId();
+  if (!sid) return {};
+  const Query = await Q();
+  const docs = await safeList<CalendarDay>(COLLECTIONS.calendarDays, [
+    Query.equal("studentId", sid),
+    Query.limit(PAGE_LIMIT),
+  ]);
+  return Object.fromEntries(docs.map((d) => [d.date, { state: d.state, minutes: d.minutes }]));
+}
+
+/**
+ * Momentum from real study history rather than a seed value.
+ *
+ * A rolling 14-day window: each day scores against the student's own target,
+ * and missed days pull it down gently. Momentum decays — it never resets — so
+ * one bad day costs a little and a bad fortnight costs a lot.
+ */
+export function calcMomentum(
+  days: Record<string, { state: string; minutes?: number }>,
+  target: number,
+  from: Date = new Date(),
+): { momentum: number; delta: number } {
+  const scoreWindow = (offset: number) => {
+    let score = 50;
+    for (let i = offset + 13; i >= offset; i -= 1) {
+      const d = new Date(from);
+      d.setDate(d.getDate() - i);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const rec = days[key];
+      const minutes = rec?.minutes ?? 0;
+      if (minutes >= target) score += 6;
+      else if (minutes > 0) score += 2;
+      else score -= 5;
+      score = Math.max(0, Math.min(100, score));
+    }
+    return Math.round(score);
+  };
+
+  const momentum = scoreWindow(0);
+  return { momentum, delta: momentum - scoreWindow(7) };
+}

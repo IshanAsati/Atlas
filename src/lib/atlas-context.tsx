@@ -85,11 +85,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     setError(null);
     try {
-      const [studRes, subsRes, topsRes, missRes] = await Promise.all([
+      const [studRes, subsRes, topsRes, missRes, calRes] = await Promise.all([
         fetch("/api/student").then((r) => r.ok ? r.json() : null),
         fetch("/api/topics?type=subjects").then((r) => r.ok ? r.json() : null),
         fetch("/api/topics").then((r) => r.ok ? r.json() : null),
         fetch("/api/mission").then((r) => r.ok ? r.json() : null),
+        /* Never fetched before, so the streak read zero and the calendar
+           grid was empty however much the student had studied. */
+        fetch("/api/calendar?days=1").then((r) => r.ok ? r.json() : null),
       ]);
 
       if (mounted.current) {
@@ -97,6 +100,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         if (Array.isArray(subsRes)) setSubjects(subsRes);
         if (Array.isArray(topsRes)) setTopics(topsRes);
         if (missRes?.tasks) setMission(missRes);
+        if (calRes && typeof calRes === "object") setCalendarDays(calRes);
       }
     } catch {
       // Network error — leave state as-is (null/empty)

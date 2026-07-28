@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Node build scripts, not app code — CommonJS is correct there.
+    "docs/deck.js",
+    "scripts/**",
   ]),
 ]);
 

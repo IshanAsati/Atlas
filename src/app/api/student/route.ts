@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
-import { getServerStudent, updateStudentProfile } from "@/lib/data";
+import { calcMomentum, getAllCalendarDays, getServerStudent, updateStudentProfile } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
     const student = await getServerStudent();
-    return NextResponse.json(student);
+    if (!student) return NextResponse.json(null);
+
+    /* Momentum is computed from what the student actually did, not stored.
+       The profile's seed value was never updated by anything. */
+    const days = await getAllCalendarDays();
+    const { momentum, delta } = calcMomentum(days, student.studyTime);
+    return NextResponse.json({ ...student, momentum, momentumDelta: delta });
   } catch (error) {
     console.error("[student] GET error:", error);
     return NextResponse.json({ error: "Failed to load student." }, { status: 500 });
