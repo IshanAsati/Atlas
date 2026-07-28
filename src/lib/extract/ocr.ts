@@ -21,8 +21,27 @@ export function isImageFile(file: File): boolean {
 /**
  * Read the text out of an image.
  */
+/* Structural types for the slice of tesseract.js we use. The module is
+   loaded through `new Function` so no bundler tries to resolve it on the
+   server, which also means we get no types from it — these stand in. */
+interface OcrLog {
+  status?: string;
+  progress?: number;
+}
+
+interface OcrWorker {
+  recognize(input: File): Promise<{ data: { text?: string } }>;
+  terminate(): Promise<unknown>;
+}
+
+type CreateWorker = (
+  lang: string,
+  oem: undefined,
+  options: { logger: (message: OcrLog) => void },
+) => Promise<OcrWorker>;
+
 export async function ocrImage(file: File, onProgress?: (pct: number) => void): Promise<string> {
-  let worker: any = null;
+  let worker: OcrWorker | null = null;
   let last = 0;
 
   const report = (pct: number) => {
@@ -32,12 +51,12 @@ export async function ocrImage(file: File, onProgress?: (pct: number) => void): 
   };
 
   try {
-    const createWorker: any = await new Function(
+    const createWorker = (await new Function(
       'return import("tesseract.js").then(m => m.createWorker)',
-    )();
+    )()) as CreateWorker;
 
     worker = await createWorker("eng", undefined, {
-      logger: (message: { status?: string; progress?: number }) => {
+      logger: (message: OcrLog) => {
         if (typeof message.progress !== "number") return;
         report(
           message.status === "recognizing text"
