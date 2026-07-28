@@ -89,8 +89,26 @@ export function Onboarding() {
     setStages(["Reading your syllabus...", "Finding units and chapters", "Matching exam dates", "Building your topic graph"]);
 
     try {
+      let textBody: string | undefined;
+      const ocrStages = ["Reading your textbook…", "Finding units and chapters", "Matching exam dates", "Building your topic graph"];
+
+      if (isImageFile(file)) {
+        /* Photo — OCR it in the browser, then send the text to the server.
+           The extraction route accepts a `text` form field for this path. */
+        setStages(ocrStages);
+        const text = await ocrImage(file, setOcrPercent);
+        if (text.length < MIN_OCR_CHARS) {
+          throw new Error(`Atlas read ${text.length} characters — too few to extract a syllabus. Try a clearer photo or a PDF scan.`);
+        }
+        textBody = text;
+      }
+
       const formData = new FormData();
-      formData.append("file", file);
+      if (textBody) {
+        formData.append("text", textBody);
+      } else {
+        formData.append("file", file);
+      }
 
       const response = await fetch("/api/extract", { method: "POST", body: formData });
 
@@ -303,15 +321,14 @@ export function Onboarding() {
               </h1>
               <p className="mt-4 max-w-md text-[0.95rem] leading-relaxed text-ink-2">
                 Atlas reads the units, finds your exam dates, and builds the topic
-                graph. You don&apos;t type anything. A scanned photo won&apos;t work yet —
-                it needs a PDF with real text in it.
+                graph. You don&apos;t type anything — PDF, photo, or scan, Atlas reads it.
               </p>
 
               {/* Intake slot */}
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="application/pdf,.pdf"
+                accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp"
                 className="hidden"
                 onChange={handleInputChange}
               />
