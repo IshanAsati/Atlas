@@ -160,10 +160,53 @@ If the DeepSeek API fails, Appwrite is down, or a bug causes a crash, there's no
 
 **What it needs:** An error boundary component wrapping the shell layout. A logging service (Sentry, LogRocket, or a simple `/api/log` endpoint that writes to Appwrite). At minimum: log API errors with timestamp, route, and error message so debugging doesn't require reproducing locally.
 
-### 22. No loading skeleton states
-All loading states show a simple `<Micro>Loading…</Micro>` text. The dashboard, calendar, and graph should show skeleton placeholders that match the layout dimensions so the page doesn't jump when data arrives.
+### 23. Graph page is not working
+The LearningGraph has a crash path when `subjects` is empty (prerender error). Fixed temporarily with a useEffect guard, but the graph has no real API integration — it uses `useLiveTopics()` from `liveConfidence.ts` (client-side sessionStorage) and the subject list.
 
-**What it needs:** Skeleton components for each major section: a pulsing `<Panel>` for the mission card, a grid of pulsing circles for the calendar days, a pulsing bar for the momentum dial. The `loading` flag from DataProvider controls visibility.
+**What it needs:** The graph should fetch topics from `GET /api/topics` and subjects from `GET /api/topics?type=subjects` instead of relying on mock data. The SVG layout should handle dynamic subject counts. Topic inspector panel should load from the NCERT knowledge graph instead of showing hardcoded placeholder text.
+
+### 24. DeepSeek model is not explicitly set to the best available
+The coach uses `deepseek-v4-flash` via the `DEEPSEEK_MODEL` env var. This should be explicitly configured for the best model available for the competition. DeepSeek offers several models — `deepseek-v4-pro` for heavier reasoning, `deepseek-v4-flash` for speed. The coach prompt and tool definitions should be tuned to whichever model is chosen.
+
+**What it needs:** Set `DEEPSEEK_MODEL=deepseek-v4-pro` in `.env.local` and verify the coach response quality improves. If the pro model is slower, consider using flash for streaming and pro for the tool-calling loop (non-streaming).
+
+### 25. UI/UX needs a dedicated improvement pass
+The current UI is functional but rough in many places. Specific issues:
+- **Loading states**: All components use `<Micro>Loading…</Micro>` text. No skeleton placeholders, no progress indicators.
+- **Empty states**: When Appwrite has no data, users see blank panels or "null" text. No onboarding guidance or CTAs.
+- **Graph page**: The 3-level tree layout is amateurish. Nodes don't show confidence visually, the SVG is fixed-width, and topic names overflow.
+- **Calendar**: Day cells are `<div>` elements — not keyboard-accessible. The month switcher works but the statistics panel shows "0%" completion rate.
+- **Onboarding**: Uploading a PDF that fails shows seed data anyway (the extraction endpoint's fallback). No error recovery flow.
+- **Pomodoro**: The session completion animation is basic. No sound effects for session/break transitions.
+- **Theme**: The full light/dark system works but some panels have mismatched elevation levels in dark mode.
+- **Mobile**: No screen has been tested below 640px. The sidebar dock and graph overflow are the biggest risks.
+
+**What it needs:** A dedicated UI/UX polish pass before deployment: skeleton loading components, keyboard navigation, accessible focus states, responsive testing at 375px, sound effects for Pomodoro, empty-state illustrations, and a full dark-mode audit against the token scale.
+
+### 26. No AI usage in graph, mission planner, or progress page
+Currently AI (DeepSeek) is only used in:
+- **Coach**: Socratic tutoring via live streaming chat
+- **PDF extraction**: Structuring syllabus PDFs into subjects/topics
+
+These have NO AI and are purely rule-based:
+- **Learning Graph**: Static tree layout, fixed coordinates, no intelligent layout or clustering
+- **Mission Planner**: Priority scoring formula (confidence + time decay + exam distance). Not adaptive to the student's actual performance.
+- **Revision Queue**: Sorted by `nextReview`, no spaced repetition algorithm (SM-2 or similar)
+- **Momentum**: Hardcoded in seed data, never calculated from real study history
+- **Confidence**: Coach sends a delta number (-15 to +15), client blindly applies it. No AI-driven confidence estimation.
+- **Day Streak**: Hardcoded "0", never calculated from calendar data
+- **Progress Page**: Imports mock data directly — no API, no real data, no AI-driven insights
+
+**What it needs:** AI should power everything it can: the graph should use AI to cluster weak topics and surface misconceptions visually; the mission planner should learn which study patterns work for each student; the revision queue should use SM-2 with AI-decayed intervals; the progress page should compute momentum, streak, and confidence trends from real data with AI-generated insights.
+
+### 27. Deployment readiness audit
+Before going live, these demo artifacts must be removed or fixed:
+- **Seed data**: The `scripts/seed-demo.mjs` should not be needed for production. Users must create their own accounts.
+- **Mock imports**: Progress page still imports `momentumHistory`, `subjectConfidence`, `weeklyMinutes` directly from `src/lib/mock.ts`. These must be served through a `GET /api/progress` endpoint.
+- **Static student profile**: Dashboard greeting reads from the student profile (now from API), but a new user has no profile yet — the greeting shows "null".
+- **Session expiry handling**: If the Appwrite session expires (1 week default), the proxy redirects to `/onboarding` but the user can't log in again because the login form is behind the proxy. Need to make `/api/auth/login` the exception.
+- **Onboarding with no PDF**: "Choose your board instead" is a dead link. It should offer a board selection flow.
+- **No initial data**: A brand-new user has no subjects, topics, or missions. The dashboard shows empty panels with no CTA to start extraction.
 
 ---
 

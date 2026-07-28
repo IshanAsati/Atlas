@@ -1,12 +1,6 @@
 /**
- * Hybrid data layer — reads from Appwrite, falls back to mock.
- *
- * Server functions (exported directly) use the Appwrite server SDK and work
- * in Route Handlers and Server Components. Client components reach them
- * through the API routes defined in Phase 3–5.
- *
- * The mock fallback is always available so the app never breaks for want of
- * a database connection. The shape matches exactly so swapping is transparent.
+ * Server data layer — reads from Appwrite only.
+ * No mock fallbacks. Callers handle empty/null states.
  */
 
 import {
@@ -18,11 +12,6 @@ import {
 import { getSessionUserId } from "@/lib/auth/session";
 
 import {
-  student as mockStudent,
-  subjects as mockSubjects,
-  topics as mockTopics,
-  mission as mockMission,
-  calendarDays as mockCalendarDays,
   daysUntil,
   TODAY,
   type Subject,
@@ -34,10 +23,9 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Get the current user ID from the session cookie, falling back to student-1. */
-async function resolveStudentId(): Promise<string> {
-  const sessionUserId = await getSessionUserId();
-  return sessionUserId ?? "student-1";
+/** Get the current user ID from the session cookie, or null if unauthenticated. */
+async function resolveStudentId(): Promise<string | null> {
+  return await getSessionUserId();
 }
 
 /** Strip Appwrite metadata from a document, keeping only our fields. */
@@ -62,10 +50,7 @@ async function safeGet<T>(collection: string, id: string): Promise<T | null> {
     const d = await db();
     const doc = await d.getDocument(DB_ID, collection, id);
     return clean(doc as unknown as Record<string, unknown>) as unknown as T;
-  } catch (e) {
-    if (process.env.NODE_ENV === "development") {
-      console.warn(`[data] get ${collection}/${id} failed:`, e instanceof Error ? e.message : e);
-    }
+  } catch {
     return null;
   }
 }
@@ -76,10 +61,7 @@ async function safeList<T>(collection: string, queries: string[] = []): Promise<
     const d = await db();
     const { documents } = await d.listDocuments(DB_ID, collection, queries);
     return documents.map((dd: Record<string, unknown>) => clean(dd)) as unknown as T[];
-  } catch (e) {
-    if (process.env.NODE_ENV === "development") {
-      console.warn(`[data] list ${collection} failed:`, e instanceof Error ? e.message : e);
-    }
+  } catch {
     return [];
   }
 }
@@ -101,11 +83,10 @@ export interface StudentProfile {
   missionsAttempted: number;
 }
 
-export async function getServerStudent(): Promise<StudentProfile> {
+export async function getServerStudent(): Promise<StudentProfile | null> {
   const studentId = await resolveStudentId();
-  const doc = await safeGet<StudentProfile>(COLLECTIONS.students, studentId);
-  if (doc) return doc;
-  return { id: studentId, ...mockStudent };
+  if (!studentId) return null;
+  return await safeGet<StudentProfile>(COLLECTIONS.students, studentId);
 }
 
 // ---------------------------------------------------------------------------
@@ -114,11 +95,10 @@ export async function getServerStudent(): Promise<StudentProfile> {
 
 export async function getServerSubjects(): Promise<Subject[]> {
   const sid = await resolveStudentId();
-  const docs = await safeList<Subject>(COLLECTIONS.subjects, [
+  if (!sid) return [];
+  return await safeList<Subject>(COLLECTIONS.subjects, [
     `equal("studentId", "${sid}")`,
   ]);
-  if (docs.length > 0) return docs;
-  return [...mockSubjects];
 }
 
 // ---------------------------------------------------------------------------
@@ -127,17 +107,14 @@ export async function getServerSubjects(): Promise<Subject[]> {
 
 export async function getServerTopics(subjectId?: string): Promise<Topic[]> {
   const sid = await resolveStudentId();
+  if (!sid) return [];
   const queries = [`equal("studentId", "${sid}")`];
   if (subjectId) queries.push(`equal("subjectId", "${subjectId}")`);
-  const docs = await safeList<Topic>(COLLECTIONS.topics, queries);
-  if (docs.length > 0) return docs;
-  if (subjectId) return mockTopics.filter((t) => t.subjectId === subjectId);
-  return [...mockTopics];
+  return await safeList<Topic>(COLLECTIONS.topics, queries);
 }
 
 export async function getServerTopic(id: string): Promise<Topic | null> {
-  const doc = await safeGet<Topic>(COLLECTIONS.topics, id);
-  return doc ?? mockTopics.find((t) => t.id === id) ?? null;
+  return await safeGet<Topic>(COLLECTIONS.topics, id);
 }
 
 // ---------------------------------------------------------------------------
@@ -151,8 +128,9 @@ export interface ServerMission {
   tasks: MissionTask[];
 }
 
-export async function getServerMission(date?: string): Promise<ServerMission> {
+export async function getServerMission(date?: string): Promise<ServerMission | null> {
   const sid = await resolveStudentId();
+  if (!sid) return null;
   const target = date ?? new Date().toISOString().slice(0, 10);
   const missions = await safeList<Omit<ServerMission, "tasks">>(COLLECTIONS.missions, [
     `equal("studentId", "${sid}")`,
@@ -168,7 +146,7 @@ export async function getServerMission(date?: string): Promise<ServerMission> {
     return { ...m, tasks: ordered };
   }
 
-  return { ...mockMission, tasks: [...mockMission.tasks] };
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -192,10 +170,8 @@ export async function getServerCalendarDays(
     `equal("studentId", "${sid}")`,
     `startsWith("date", "${prefix}")`,
   ]);
-  if (docs.length > 0) return docs;
-  return Object.entries(mockCalendarDays)
-    .filter(([key]) => key.startsWith(prefix))
-    .map(([key, val]) => ({ id: key, date: key, ...val, minutes: val.minutes ?? 0 }));
+  if (!docs.length) return [];
+  return docs;
 }
 
 // ---------------------------------------------------------------------------
@@ -293,9 +269,10 @@ export async function saveMission(
 export async function generateMission(
   date: string = new Date().toISOString().slice(0, 10),
   studyTime: number = 120,
-): Promise<ServerMission> {
+): Promise<ServerMission | null> {
   const allTopics = await getServerTopics();
   const allSubjects = await getServerSubjects();
+  if (!allTopics.length || !allSubjects.length) return null;
 
   interface ScoredTopic {
     topic: Topic;
@@ -319,11 +296,11 @@ export async function generateMission(
 
   const tasks: Omit<MissionTask, "id">[] = [];
   let minutesUsed = 0;
-  const remaining = studyTime - 15; // reserve 15 min for a warm-up
+  const remaining = studyTime - 15;
 
   for (const { topic, subject } of scored) {
     if (minutesUsed >= remaining) break;
-    if (topic.confidence === 0 && tasks.length > 0) continue; // skip untouched if we already have something
+    if (topic.confidence === 0 && tasks.length > 0) continue;
 
     let minutes: number;
     if (topic.confidence < 40) minutes = 35;
@@ -338,17 +315,15 @@ export async function generateMission(
     const kind: MissionTask["kind"] =
       topic.confidence < 40 ? "learn" : topic.confidence < 70 ? "quiz" : "revise";
 
-    const reasons = {
-      learn: `New topic — confidence is 0%. Build the base idea first.`,
-      quiz: `Confidence is ${topic.confidence}%. A quick quiz will test what's stuck.`,
-      revise: `Confidence fell to ${topic.confidence}%. The ${subject?.name ?? "paper"} is ${subject ? daysUntil(subject.examDate, TODAY) : "?"} days out.`,
-    };
-
     tasks.push({
       topicId: topic.id,
       topic: topic.name,
       subject: subject?.name ?? "General",
-      reason: reasons[kind],
+      reason: kind === "learn"
+        ? `New topic — confidence is 0%. Build the base idea first.`
+        : kind === "quiz"
+          ? `Confidence is ${topic.confidence}%. A quick quiz will test what's stuck.`
+          : `Confidence fell to ${topic.confidence}%. The ${subject?.name ?? "paper"} is ${subject ? daysUntil(subject.examDate, TODAY) : "?"} days out.`,
       minutes,
       status: tasks.length === 0 ? "active" : "pending",
       kind,
@@ -356,8 +331,12 @@ export async function generateMission(
     minutesUsed += minutes;
   }
 
+  if (tasks.length === 0) return null;
+
   const totalMinutes = tasks.reduce((sum, t) => sum + t.minutes, 0);
-  const missionId = `m-${date}`;
+  const sid = await resolveStudentId();
+  if (!sid) return null;
+  const missionId = `m-${sid}-${date}`;
 
   await saveMission(date, totalMinutes, tasks);
 
