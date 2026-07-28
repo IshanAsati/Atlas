@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { extractionPrompt } from "@/lib/extract/prompt";
 import { saveExtractedSubjects } from "@/lib/data";
+import { extractPdfText, looksLikeProse } from "@/lib/extract/pdf-text";
 import type { Subject, Topic } from "@/lib/mock";
 
 export const dynamic = "force-dynamic";
@@ -176,22 +177,50 @@ export async function POST(request: Request) {
 }
 
 /**
- * pdf-parse v2 is a class, not the callable default export v1 had. The old
- * call threw on every upload, the throw was swallowed, and onboarding fell
- * back to placeholder subjects while still reporting success — which is why
- * extraction appeared to "work" and always produced the same four subjects.
+ * Read the syllabus text, dependency-free first.
+ *
+ * pdf-parse (pdf.js) works locally but dies on Vercel with "Setting up fake
+ * worker failed" — the worker is loaded through a dynamic import the file
+ * tracer can't follow. So the zlib-based reader goes first because it has no
+ * moving parts, and pdf.js is only tried if that comes back implausibly
+ * short. Whichever wins, extraction is never left with nothing.
  */
 async function extractText(file: File): Promise<string> {
-  const { PDFParse } = await import("pdf-parse");
-  const data = new Uint8Array(await file.arrayBuffer());
+  const buffer = Buffer.from(await file.arrayBuffer());
 
-  const parser = new PDFParse({ data });
+  let direct = "";
   try {
-    const result = await parser.getText();
-    return result.text ?? "";
-  } finally {
-    await parser.destroy().catch(() => {});
+    direct = extractPdfText(buffer);
+  } catch (error) {
+    console.error("[extract] direct reader failed:", error);
   }
+
+  /* Only trust the direct read if it produced actual words. A subset font
+     yields plenty of characters in the wrong alphabet, and passing that to
+     the model is worse than admitting we couldn't read the file. */
+  if (looksLikeProse(direct)) {
+    console.log(`[extract] direct reader: ${direct.length} chars`);
+    return direct;
+  }
+
+  try {
+    const { PDFParse } = await import("pdf-parse");
+    const parser = new PDFParse({ data: new Uint8Array(buffer) });
+    try {
+      const viaPdfjs = (await parser.getText()).text ?? "";
+      if (viaPdfjs.trim()) {
+        console.log(`[extract] pdf.js: ${viaPdfjs.length} chars`);
+        return viaPdfjs;
+      }
+    } finally {
+      await parser.destroy().catch(() => {});
+    }
+  } catch (error) {
+    console.error("[extract] pdf.js fallback failed:", error);
+  }
+
+  // Neither route produced readable words.
+  return looksLikeProse(direct) ? direct : "";
 }
 
 function parseResponse(full: string): ExtractionFrame {
