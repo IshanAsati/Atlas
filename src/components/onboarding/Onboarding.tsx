@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/cn";
 import { Key } from "@/components/ui/Key";
@@ -24,6 +25,7 @@ const accentVar: Record<string, string> = {
 
 export function Onboarding() {
   const { user, loading } = useAuth();
+  const router = useRouter();
   const reduce = useReducedMotion();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState(0);
@@ -38,6 +40,8 @@ export function Onboarding() {
   const [studyTime, setStudyTime] = useState(120);
   const [editingSubject, setEditingSubject] = useState<string | null>(null);
   const [extractedSubjects, setExtractedSubjects] = useState<Subject[]>(seedSubjects);
+  const [extractedTopicCount, setExtractedTopicCount] = useState(4); // track actual count
+  const [buildingMission, setBuildingMission] = useState(false);
   const [subjectDates, setSubjectDates] = useState(
     Object.fromEntries(seedSubjects.map((s) => [s.id, s.examDate])),
   );
@@ -79,7 +83,6 @@ export function Onboarding() {
             if (frame.type === "stage" && frame.text) {
               setStages((prev) => {
                 const next = [...prev];
-                // Update first unchecked stage
                 for (let i = 0; i < next.length; i++) {
                   if (i < stageIndex + 1) continue;
                   next[i] = frame.text;
@@ -95,6 +98,10 @@ export function Onboarding() {
                 id: `s${i + 1}`,
                 accent: (["teal", "amber", "rust"] as const)[i % 3],
               }));
+              // Track actual topic count from the extracted result
+              if (frame.topics && Array.isArray(frame.topics)) {
+                setExtractedTopicCount(frame.topics.length);
+              }
             }
           } catch { /* partial frame */ }
         }
@@ -123,6 +130,26 @@ export function Onboarding() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) handleFile(file);
+  };
+
+  const handleBuildMission = async () => {
+    setBuildingMission(true);
+    const updatedDates = {
+      ...subjectDates,
+      ...Object.fromEntries(extractedSubjects.map((s) => [s.id, s.examDate])),
+    };
+    try {
+      const date = new Date().toISOString().slice(0, 10);
+      await fetch("/api/mission", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date, studyTime }),
+      });
+    } catch {
+      // proceed even if mission gen fails
+    }
+    setBuildingMission(false);
+    router.push("/");
   };
 
   if (loading) return null;
@@ -291,7 +318,8 @@ export function Onboarding() {
                           {subject.name}
                         </span>
                         <Micro className="mt-1 block">
-                          {subject.discipline} · 4 units found
+                          {subject.discipline}{" "}
+                          {extractedTopicCount > 0 ? `· ${extractedTopicCount} topics found` : ""}
                         </Micro>
                       </span>
                     </span>
@@ -390,12 +418,13 @@ export function Onboarding() {
                   Back
                 </Key>
                 <Key
-                  href="/"
                   size="lg"
                   tone="primary"
+                  onClick={handleBuildMission}
                   icon={<ArrowIcon width={17} height={17} />}
+                  disabled={buildingMission}
                 >
-                  Build my first mission
+                  {buildingMission ? "Building…" : "Build my first mission"}
                 </Key>
               </div>
             </Stage>

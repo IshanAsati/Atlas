@@ -1,232 +1,575 @@
 /**
- * Atlas Knowledge Graph — structured topic knowledge for the AI coach.
+ * Atlas NCERT Knowledge Base — structured topic knowledge for the AI coach.
  *
- * Each topic has:
- * - Core concepts the student must understand
- * - Common misconceptions with corrections
- * - NCERT chapter references
- * - Scaffolded question progression (easy → hard)
+ * Covers Class 10 CBSE: Science (Phy, Chem, Bio), Maths, SST (History, Geo, Polity, Econ).
+ * Each entry: core concepts, common misconceptions, NCERT-chapter-aligned questions.
  *
- * This is injected into the system prompt so the coach knows the material
- * before the student even says hello.
+ * Injected into the coach system prompt so it knows the material cold.
  */
 
 interface Concept {
   name: string;
-  /** A 1–2 sentence explanation in NCERT terminology. */
   blurb: string;
 }
-
 interface Misconception {
-  /** What the student often thinks. */
   wrong: string;
-  /** What is actually true. */
   right: string;
 }
-
 interface TopicKnowledge {
+  ncert: string;
   concepts: Concept[];
   misconceptions: Misconception[];
-  ncertChapter: string;
-  /** Questions ordered easiest to hardest. */
   questions: string[];
 }
 
-const GRAPH: Record<string, TopicKnowledge> = {
+const G: Record<string, TopicKnowledge> = {
+  // =========================== PHYSICS ===========================
   "Magnetic Effects": {
-    ncertChapter: "Class 10 Science, Chapter 12",
+    ncert: "Ch 12 · Magnetic Effects of Electric Current",
     concepts: [
-      { name: "Magnetic field lines", blurb: "Closed loops running north to south outside a magnet. Never intersect. Tangent at any point gives the field direction." },
-      { name: "Right-hand thumb rule", blurb: "For a straight current-carrying wire: thumb points in current direction, curled fingers show the magnetic field direction (concentric circles around the wire)." },
-      { name: "Solenoid", blurb: "A coil of many circular turns of insulated copper wire. Inside it, field lines are parallel and uniform — like a bar magnet. One end is north, the other south." },
-      { name: "Electromagnetic induction", blurb: "A changing magnetic field induces a current in a nearby conductor. The induced current lasts only while the field is changing. Fleming's right-hand rule gives its direction." },
-      { name: "Fleming's left-hand rule", blurb: "For a current-carrying conductor in a magnetic field: forefinger = field, middle finger = current, thumb = force/motion. Used for motors, not generators." },
-      { name: "Electric motor", blurb: "Converts electrical energy to mechanical. A coil in a magnetic field rotates when current flows. Split-ring commutator reverses current every half-turn to keep rotation going." },
-      { name: "Electric generator", blurb: "Converts mechanical energy to electrical. A coil rotates in a magnetic field, inducing an alternating current. Uses slip rings (AC) or split rings (DC)." },
+      { name: "Magnetic field lines", blurb: "Closed loops running north→south outside magnet. Tangent = field direction." },
+      { name: "Right-hand thumb rule", blurb: "Thumb = current, curled fingers = magnetic field direction (concentric circles)." },
+      { name: "Solenoid", blurb: "Coil of insulated wire. Inside: uniform parallel field, like a bar magnet." },
+      { name: "Electromagnetic induction", blurb: "Changing magnetic field induces current. Fleming's right-hand rule for direction." },
+      { name: "Electric motor", blurb: "Electrical → mechanical. Split-ring commutator reverses current every half-turn." },
+      { name: "Electric generator", blurb: "Mechanical → electrical. Slip rings (AC) or split rings (DC)." },
     ],
     misconceptions: [
-      { wrong: "Longer wire means stronger field at the centre of a loop", right: "At the centre of a circular loop, every segment's field adds up in the same direction — it is stronger than a straight wire, not weaker." },
-      { wrong: "Fleming's left-hand and right-hand rules are interchangeable", right: "Left-hand rule is for motors (force on a current-carrying conductor). Right-hand rule is for generators (induced current direction)." },
-      { wrong: "Magnetic field lines start at the north pole and end at the south pole", right: "Field lines are continuous closed loops. They don't start or end anywhere — monopoles don't exist." },
-      { wrong: "A stationary magnet near a coil induces current", right: "Only a changing magnetic field induces current. The magnet must be moving, or the current in a nearby coil must be changing." },
+      { wrong: "Field lines start at north, end at south", right: "Continuous closed loops. Monopoles don't exist." },
+      { wrong: "Fleming's left and right rules are interchangeable", right: "Left = motor (force on conductor). Right = generator (induced current)." },
+      { wrong: "Stationary magnet near coil induces current", right: "Only a changing field induces current. Magnet must move." },
     ],
     questions: [
-      "What do magnetic field lines tell us about the direction and strength of the field at any point?",
-      "A straight wire carries current north to south. Use the right-hand thumb rule to describe the magnetic field around it.",
-      "Why is the field at the centre of a current-carrying loop stronger than that near a straight wire carrying the same current?",
-      "Compare a solenoid's magnetic field with that of a bar magnet. How can you tell which end is the north pole?",
-      "A student wraps a coil around a nail and connects it to a battery. Explain why this creates an electromagnet and what factors control its strength.",
-      "Describe what happens in a coil when a magnet is pushed into it, held stationary inside it, then pulled out. What is induced, and when?",
-      "A generator produces alternating current. What would you change to make it produce direct current instead, and why does that work?",
+      "What do magnetic field lines tell you about a magnet?",
+      "Current flows north→south in a wire. Describe the field around it.",
+      "Compare a solenoid's field with a bar magnet. Find the north pole.",
     ],
   },
-
-  "Electricity": {
-    ncertChapter: "Class 10 Science, Chapter 11",
+  Electricity: {
+    ncert: "Ch 11 · Electricity",
     concepts: [
-      { name: "Ohm's Law", blurb: "V = IR. Current through a conductor is directly proportional to potential difference across it, provided temperature remains constant." },
-      { name: "Resistance", blurb: "Opposition to current flow. R = ρL/A — depends on material (resistivity ρ), length (L), and cross-sectional area (A)." },
-      { name: "Series vs parallel", blurb: "Series: current same, voltage divides. Parallel: voltage same, current divides. Equivalent resistance: Rs = R₁ + R₂ + …; 1/Rp = 1/R₁ + 1/R₂ + …" },
-      { name: "Heating effect", blurb: "H = I²Rt. Used in electric iron, heater, fuse. The filament of a bulb gets hot and glows because of this effect." },
-      { name: "Electric power", blurb: "P = VI = I²R = V²/R. Measured in watts. 1 kWh (unit) = 1000 watt × 1 hour. Commercial unit of energy." },
+      { name: "Ohm's Law", blurb: "V = IR. I ∝ V at constant temperature." },
+      { name: "Resistance", blurb: "R = ρL/A. ρ depends on material and temp." },
+      { name: "Series vs parallel", blurb: "Series: I same, V divides, Rs = R₁+R₂+… Parallel: V same, I divides, 1/Rp = 1/R₁+1/R₂+…" },
+      { name: "Heating effect", blurb: "H = I²Rt. Used in heater, iron, fuse." },
+      { name: "Electric power", blurb: "P = VI = I²R = V²/R. 1 kWh = 1000 W × 1 h." },
     ],
     misconceptions: [
-      { wrong: "Resistance is a fixed property of a conductor", right: "Resistance depends on temperature. For metals, resistance increases with temperature. For semiconductors, it decreases." },
-      { wrong: "Series circuits always draw more current", right: "Adding resistors in series increases total resistance, so total current decreases (same voltage). Parallel provides more paths — total current increases." },
-      { wrong: "Power is always I²R for any circuit", right: "P = I²R gives the power dissipated as heat in a resistor. The total power delivered by a source is P = VI." },
+      { wrong: "Resistance is fixed", right: "For metals, R↑ with T↑. Semiconductors: R↓ with T↑." },
+      { wrong: "Series circuits draw more current", right: "Adding R in series ↑ total R → ↓ current." },
     ],
     questions: [
-      "A wire of length L and resistance R is stretched to twice its length. What happens to its resistance and why?",
-      "Two resistors of 4 Ω and 6 Ω are connected in parallel across a 12 V battery. Find the current through each resistor and the total current from the battery.",
-      "Why does the filament of a bulb glow but the connecting wires do not, even though the same current flows through both?",
-      "An electric heater draws 5 A from a 220 V line. How much energy does it consume in 2 hours? Express it in joules and in kilowatt-hours.",
+      "Wire stretched to 2× length. What happens to R?",
+      "4Ω + 6Ω in parallel across 12V. Find each current and total.",
     ],
   },
-
-  "Trigonometry": {
-    ncertChapter: "Class 10 Mathematics, Chapter 8",
+  "Light — Reflection": {
+    ncert: "Ch 9 · Light – Reflection and Refraction",
     concepts: [
-      { name: "Trigonometric ratios", blurb: "In a right triangle: sin θ = opposite/hypotenuse, cos θ = adjacent/hypotenuse, tan θ = opposite/adjacent. Defined for acute angles (0° to 90°)." },
-      { name: "Fundamental identity", blurb: "sin²θ + cos²θ = 1. Derived directly from Pythagoras theorem. This single identity generates all the others." },
-      { name: "Complementary angles", blurb: "sin(90° − θ) = cos θ, cos(90° − θ) = sin θ, tan(90° − θ) = cot θ, etc. The ratios of complementary angles are co-ratios." },
-      { name: "Heights and distances", blurb: "Practical applications using angle of elevation (line of sight above horizontal) and angle of depression (line of sight below horizontal)." },
+      { name: "Laws of reflection", blurb: "∠i = ∠r. Incident, reflected, normal lie in same plane." },
+      { name: "Spherical mirrors", blurb: "Concave: converging. Convex: diverging. f = R/2. 1/f = 1/v + 1/u." },
+      { name: "Refraction", blurb: "Snell's law: n₁ sin i = n₂ sin r. Light bends toward normal in denser medium." },
+      { name: "Lens formula", blurb: "1/f = 1/v − 1/u. Convex +ve, concave −ve. P = 1/f dioptre." },
     ],
     misconceptions: [
-      { wrong: "sin²θ + cos²θ = 1 must be memorised", right: "It is Pythagoras with hypotenuse = 1. Draw the triangle: opposite² + adjacent² = 1², which is exactly sin²θ + cos²θ = 1." },
-      { wrong: "Trigonometric ratios work for any angle in any triangle", right: "The basic definitions (opposite/hypotenuse, etc.) only apply to right triangles for angles 0° to 90°. For general triangles, you need the sine rule or cosine rule." },
-      { wrong: "Angle of elevation and angle of depression are different types of angles", right: "They are both measured from the horizontal. Elevation is upward from the horizontal; depression is downward from the horizontal. Mathematically, they are equal when the observer and object are at the same horizontal level." },
+      { wrong: "Image in plane mirror is on the surface", right: "It's behind at same distance as the object is in front." },
+      { wrong: "Concave mirrors always magnify", right: "Only when object is between F and P. Beyond C, image is smaller." },
     ],
     questions: [
-      "Define sin θ for a right triangle. Without a calculator, explain why sin θ is always between 0 and 1 for acute angles.",
-      "If sin A = 3/5, find cos A and tan A using the fundamental identity.",
-      "Prove that (sin A + cos A)² + (sin A − cos A)² = 2, for any angle A.",
-      "From a point on the ground 30 m from the foot of a tower, the angle of elevation of the top is 60°. Find the height of the tower.",
+      "Object between F and 2F of a convex lens. Describe the image.",
+      "A convex lens forms a real image 3× the size at 30 cm from lens. Find u.",
     ],
   },
-
-  "Carbon Compounds": {
-    ncertChapter: "Class 10 Science, Chapter 4",
+  "Human Eye": {
+    ncert: "Ch 10 · The Human Eye and the Colourful World",
     concepts: [
-      { name: "Covalent bonding in carbon", blurb: "Carbon has 4 valence electrons. It shares electrons to complete its octet — never transfers. This is why it forms covalent bonds. Catenation: carbon atoms link together to form long chains, branches, and rings." },
-      { name: "Functional groups", blurb: "An atom or group of atoms that determines the chemical properties of an organic compound. Examples: −OH (alcohol), −COOH (carboxylic acid), −CHO (aldehyde), −CO− (ketone), −Cl/Br (halogen)." },
-      { name: "Homologous series", blurb: "A series of compounds with the same functional group and general formula. Each successive member differs by a −CH₂− unit. Same chemical properties, gradation in physical properties." },
-      { name: "IUPAC nomenclature", blurb: "Prefix (substituent) + Word root (number of carbons in longest chain) + Suffix (functional group). Chain numbering gives the functional group the lowest possible number." },
+      { name: "Accommodation", blurb: "Ciliary muscles adjust lens focal length. Near point 25 cm, far point ∞." },
+      { name: "Myopia", blurb: "Image before retina. Correct with concave lens." },
+      { name: "Hypermetropia", blurb: "Image behind retina. Correct with convex lens." },
+      { name: "Dispersion", blurb: "White light splits into VIBGYOR through prism. Red bends least, violet most." },
+      { name: "Scattering", blurb: "Blue sky: shorter wavelengths scatter more. Red sunset: longer λ reach us." },
     ],
     misconceptions: [
-      { wrong: "The suffix of a compound depends on the name of the longest chain", right: "The suffix is determined by the functional group present (−ol for alcohol, −oic acid for carboxylic acid, −al for aldehyde). The chain name (meth-, eth-, prop-, …) gives the word root." },
-      { wrong: "All carbon compounds are organic", right: "Carbon dioxide, carbon monoxide, carbonates, and bicarbonates contain carbon but are classified as inorganic compounds." },
-      { wrong: "Soap works because it simply washes dirt away", right: "Soap molecules have a hydrophobic (water-repelling) hydrocarbon tail and a hydrophilic (water-attracting) ionic head. The tail dissolves in grease; the head stays in water. This forms a micelle that lifts the dirt off." },
+      { wrong: "Stars twinkle because they're far", right: "Atmospheric refraction. Planets don't twinkle — they're resolved discs." },
     ],
     questions: [
-      "Why does carbon form covalent bonds rather than ionic bonds? Explain using its electronic configuration.",
-      "Name the compound CH₃−CH₂−CH₂−OH. Identify its functional group and explain how the IUPAC name is constructed.",
-      "Two compounds have the molecular formula C₂H₆O but different structures. Draw both and explain why they are different even though the formula is the same.",
-      "Explain the cleansing action of soap with a diagram. Why is soap ineffective in hard water?",
+      "Why is sky blue and sunset red?",
+      "A person can't see beyond 2 m. Defect? Which lens?",
     ],
   },
-
+  "Sources of Energy": {
+    ncert: "Ch 13 · Sources of Energy",
+    concepts: [
+      { name: "Renewable vs non-renewable", blurb: "Solar, wind, hydro, tidal, biomass (renewable). Coal, petroleum, gas (non-renewable)." },
+      { name: "Fossil fuels", blurb: "Formed over millions of years from dead organisms. Coal → thermal power." },
+      { name: "Solar", blurb: "Solar cooker (concave mirror). Solar cell (Si → electricity)." },
+      { name: "Nuclear", blurb: "U-235 fission. E = mc². Problem: radioactive waste." },
+    ],
+    misconceptions: [
+      { wrong: "Nuclear power is renewable", right: "Uranium is finite. It's non-renewable." },
+      { wrong: "Wind works anywhere", right: "Needs sustained wind > 15 km/h." },
+    ],
+    questions: [
+      "Classify: coal, wind, nuclear, tidal, biomass. Which are renewable?",
+      "Why haven't we fully switched to solar?",
+    ],
+  },
+  // =========================== CHEMISTRY ===========================
+  "Chemical Reactions": {
+    ncert: "Ch 1 · Chemical Reactions and Equations",
+    concepts: [
+      { name: "Balancing", blurb: "Atoms conserved. Same number of each element on both sides." },
+      { name: "Types", blurb: "Combination (A+B→C), decomposition (A→B+C), displacement (A+BC→AC+B), double displacement (AB+CD→AD+CB)." },
+      { name: "Redox", blurb: "Oxidation: gain O / lose H. Reduction: lose O / gain H. Always together." },
+      { name: "Rancidity", blurb: "Fats oxidise → bad smell. Prevent: antioxidants, N₂ flushing, refrigeration." },
+    ],
+    misconceptions: [
+      { wrong: "Balancing is about making numbers equal", right: "It's about atom conservation — same count on both sides." },
+      { wrong: "Rust needs only oxygen", right: "Water is essential. Iron doesn't rust in dry air." },
+    ],
+    questions: ["Balance Fe + H₂O → Fe₃O₄ + H₂. What type of reaction?"],
+  },
   "Acids, Bases & Salts": {
-    ncertChapter: "Class 10 Science, Chapter 2",
+    ncert: "Ch 2 · Acids, Bases and Salts",
     concepts: [
-      { name: "Arrhenius definition", blurb: "Acids produce H⁺ ions in water. Bases produce OH⁻ ions in water. Strong acids/bases ionise completely; weak ones ionise partially." },
-      { name: "pH scale", blurb: "Measures hydrogen ion concentration. 0 (strongly acidic) to 14 (strongly basic). pH 7 is neutral. Each unit change is a 10× change in H⁺ concentration." },
-      { name: "Neutralisation", blurb: "Acid + Base → Salt + Water. The H⁺ from the acid combines with OH⁻ from the base to form H₂O. The remaining ions form the salt." },
-      { name: "Common salts and their uses", blurb: "NaCl (table salt, industrial), NaHCO₃ (baking soda — antacid, fire extinguisher), Na₂CO₃·10H₂O (washing soda — cleaning), CaSO₄·½H₂O (Plaster of Paris — casts, moulds)." },
+      { name: "Arrhenius", blurb: "Acid → H⁺, Base → OH⁻ in water. Strong: fully ionise." },
+      { name: "pH scale", blurb: "0–14. pH 7 neutral. Each unit = 10× change in H⁺." },
+      { name: "Common salts", blurb: "NaCl, NaHCO₃ (baking soda), Na₂CO₃·10H₂O (washing soda), CaSO₄·½H₂O (POP)." },
     ],
     misconceptions: [
-      { wrong: "A strong acid is the same as a concentrated acid", right: "Strong/weak refers to the degree of ionisation (HCl is strong because it fully dissociates). Concentrated/dilute refers to the amount of acid dissolved in water. A concentrated weak acid exists." },
-      { wrong: "pH 6 is slightly acidic", right: "pH 6 is 10× more acidic than pH 7, and 100× more acidic than pH 8. The scale is logarithmic, not linear." },
-      { wrong: "All salts are neutral", right: "Salts of a strong acid + weak base are acidic (e.g. NH₄Cl). Salts of a weak acid + strong base are basic (e.g. Na₂CO₃). Only salts of strong acid + strong base are neutral (e.g. NaCl)." },
+      { wrong: "Strong acid = concentrated", right: "Strong/weak = degree of ionisation. Conc./dilute = amount dissolved." },
+      { wrong: "All salts are neutral", right: "NH₄Cl (acidic), Na₂CO₃ (basic). Only strong+strong is neutral." },
     ],
     questions: [
-      "A solution has pH 4. How many times more acidic is it than a solution with pH 6?",
-      "Classify these as strong/weak acids and concentrated/dilute: 0.1 M HCl, 10 M CH₃COOH. Explain the difference between the two classifications.",
-      "Describe the preparation of Plaster of Paris from gypsum. Write the chemical equation and explain why POP is stored in a moisture-proof container.",
-      "A student mixes sodium carbonate solution with hydrochloric acid. Name the gas evolved and write the balanced equation. How would you test for this gas?",
+      "pH 4 is how many times more acidic than pH 6?",
+      "Why is POP stored in moisture-proof container? Write the equation.",
     ],
   },
-
-  "Quadratic Equations": {
-    ncertChapter: "Class 10 Mathematics, Chapter 4",
+  "Metals & Non-metals": {
+    ncert: "Ch 3 · Metals and Non-metals",
     concepts: [
-      { name: "Standard form", blurb: "ax² + bx + c = 0 where a ≠ 0. A quadratic equation has exactly two roots (they may be equal)." },
-      { name: "Discriminant", blurb: "D = b² − 4ac. D > 0 → two distinct real roots. D = 0 → two equal real roots. D < 0 → no real roots." },
-      { name: "Quadratic formula", blurb: "x = [−b ± √(b² − 4ac)] / 2a. Derived by completing the square. Works for every quadratic, even when factoring fails." },
-      { name: "Nature of roots without solving", blurb: "Use the discriminant to determine how many real roots exist and whether they are rational or irrational — without actually solving the equation." },
+      { name: "Reactivity series", blurb: "K > Na > Ca > Mg > Al > Zn > Fe > Pb > H > Cu > Hg > Ag > Au." },
+      { name: "Extraction", blurb: "Electrolysis for top (K, Na, Ca, Mg, Al). Carbon reduction for middle (Zn, Fe)." },
+      { name: "Alloys", blurb: "Brass (Cu+Zn), Bronze (Cu+Sn), Steel (Fe+Ni+Cr). Better properties than pure." },
     ],
     misconceptions: [
-      { wrong: "Every quadratic has real roots", right: "If the discriminant is negative, the roots are complex (not real). In Class 10, this means 'no real roots.'" },
-      { wrong: "The coefficient 'a' doesn't matter much", right: "'a' determines the parabola's opening (upward if a > 0, downward if a < 0) and its width. Setting a = 0 makes it a linear equation, not quadratic." },
+      { wrong: "All metal oxides are basic", right: "Al₂O₃ and ZnO are amphoteric." },
     ],
     questions: [
-      "Solve x² − 5x + 6 = 0 by factoring and verify using the quadratic formula.",
-      "Without solving, determine the nature of the roots of 2x² − 4x + 5 = 0. Explain how you know.",
-      "The sum of two numbers is 27 and their product is 182. Find the numbers by forming a quadratic equation.",
-      "Find the value of k for which the equation x² + kx + 64 = 0 has equal roots.",
+      "Why is Na stored under kerosene?",
+      "Explain Al extraction from bauxite. Why can't carbon reduce it?",
     ],
   },
-
+  "Carbon Compounds": {
+    ncert: "Ch 4 · Carbon and its Compounds",
+    concepts: [
+      { name: "Covalent bonding", blurb: "C shares 4 electrons. Catenation: chains, branches, rings." },
+      { name: "Functional groups", blurb: "-OH (alcohol), -COOH (acid), -CHO (aldehyde), -CO- (ketone)." },
+      { name: "Soap", blurb: "Hydrophobic tail + hydrophilic head → micelle. Detergents work in hard water." },
+    ],
+    misconceptions: [
+      { wrong: "All C compounds are organic", right: "CO₂, CO, carbonates are inorganic." },
+      { wrong: "Soap physically washes dirt away", right: "Micelles lift grease off. Tail dissolves in grease, head in water." },
+    ],
+    questions: ["Name CH₃CH₂CH₂OH. Identify functional group. How is IUPAC name constructed?"],
+  },
+  "Periodic Classification": {
+    ncert: "Ch 5 · Periodic Classification of Elements",
+    concepts: [
+      { name: "Mendeleev", blurb: "Based on atomic mass. Predicted undiscovered elements (eka-boron, etc.)." },
+      { name: "Modern periodic", blurb: "Based on atomic number (Moseley). 18 groups, 7 periods." },
+      { name: "Trends", blurb: "Down group: size↑, metallic↑. Across period: size↓, metallic↓." },
+    ],
+    misconceptions: [
+      { wrong: "Mendeleev arranged by atomic number", right: "He arranged by atomic mass. Atomic number came later." },
+    ],
+    questions: ["Why does atomic size decrease across a period but increase down a group?"],
+  },
+  // =========================== BIOLOGY ===========================
   "Life Processes": {
-    ncertChapter: "Class 10 Science, Chapter 5",
+    ncert: "Ch 5 · Life Processes",
     concepts: [
-      { name: "Nutrition", blurb: "Autotrophic (plants — photosynthesis: 6CO₂ + 6H₂O → C₆H₁₂O₆ + 6O₂ using sunlight and chlorophyll) and heterotrophic (animals — holozoic, saprophytic, parasitic)." },
-      { name: "Respiration", blurb: "Breakdown of glucose to release energy. Aerobic (O₂ present): C₆H₁₂O₆ + 6O₂ → 6CO₂ + 6H₂O + 38 ATP. Anaerobic (O₂ absent): glucose → ethanol + CO₂ + 2 ATP (yeast) or glucose → lactic acid + 2 ATP (muscles)." },
-      { name: "Transportation", blurb: "In humans: heart pumps blood through arteries, veins, capillaries. Double circulation. In plants: xylem (water & minerals upward) and phloem (food in both directions using ATP)." },
-      { name: "Excretion", blurb: "Removal of nitrogenous wastes. Humans: kidneys filter blood, form urine (urea). Plants: stomata, lenticels, shedding leaves; waste products stored as resins and gums." },
+      { name: "Photosynthesis", blurb: "6CO₂+6H₂O → C₆H₁₂O₆+6O₂. Needs sunlight, chlorophyll." },
+      { name: "Respiration", blurb: "Aerobic: 38 ATP. Anaerobic (muscles): lactic acid+2 ATP. (yeast): ethanol+CO₂+2 ATP." },
+      { name: "Transport", blurb: "Heart: 4 chambers, double circulation. Xylem (water up), phloem (food both ways)." },
     ],
     misconceptions: [
-      { wrong: "Plants photosynthesise and animals respire", right: "Plants do both — photosynthesis during the day, respiration all the time. Respiration is universal across all living organisms." },
-      { wrong: "Blood is only red because of oxygen", right: "Haemoglobin (an iron-containing protein) is red in colour regardless. Oxyhaemoglobin is bright red; deoxyhaemoglobin is dark red/purple. Blood is never blue." },
-      { wrong: "Urine is just excess water", right: "Urine contains urea, uric acid, excess salts, and water-soluble vitamins. It is the kidney's filtered output of nitrogenous waste from protein metabolism." },
+      { wrong: "Plants photosynthesise, animals respire", right: "Plants do both. Respiration is universal." },
+      { wrong: "Blood is blue without oxygen", right: "Haemoglobin itself is red. Deoxyhaemoglobin is darker red." },
     ],
-    questions: [
-      "Write the balanced equation for photosynthesis. What happens to the glucose produced?",
-      "Compare aerobic and anaerobic respiration in terms of products, ATP yield, and where each occurs in the human body.",
-      "Trace the path of a red blood cell from the right atrium to the left ventricle, naming every chamber and vessel.",
-      "Explain how the nephron filters blood. What is reabsorbed back into the blood, and what stays in the filtrate?",
+    questions: ["Write the balanced photosynthesis equation.", "Compare aerobic and anaerobic respiration."],
+  },
+  "Control & Coordination": {
+    ncert: "Ch 6 · Control and Coordination",
+    concepts: [
+      { name: "Neuron", blurb: "Dendrite → cell body → axon → synapse. Reflex arc: sensory → relay → motor." },
+      { name: "Brain", blurb: "Forebrain (thinking), midbrain, cerebellum (balance), medulla (breathing/heartbeat)." },
+      { name: "Hormones", blurb: "Thyroxine (metabolism), insulin (sugar), adrenaline (fight/flight). Plant: auxin (phototropism)." },
     ],
+    misconceptions: [
+      { wrong: "Spinal cord is part of brain", right: "Part of CNS but separate. Handles reflexes." },
+      { wrong: "Hormones work instantly", right: "Slower than nerves, longer-lasting. Nerves are fast, short." },
+    ],
+    questions: ["Draw a reflex arc. Label each neuron.", "Compare nervous vs hormonal control."],
+  },
+  "How do Organisms Reproduce": {
+    ncert: "Ch 7 · Reproduction",
+    concepts: [
+      { name: "Asexual", blurb: "Binary fission (amoeba), budding (hydra), fragmentation (spirogyra), spore formation (rhizopus)." },
+      { name: "Human", blurb: "Testes → sperm. Ovaries → ovum. Fertilisation in fallopian tube." },
+      { name: "Contraception", blurb: "Barrier (condom), hormonal (pills), surgical (vasectomy, tubectomy), IUCD." },
+    ],
+    misconceptions: [
+      { wrong: "Regeneration = reproduction", right: "Planaria regenerates but reproduces by fission." },
+      { wrong: "Pollination = fertilisation", right: "Pollination: pollen on stigma. Fertilisation: gametes fuse." },
+    ],
+    questions: ["Trace the path of sperm from testes to urethra."],
+  },
+  Heredity: {
+    ncert: "Ch 8 · Heredity",
+    concepts: [
+      { name: "Mendel", blurb: "Dominance: one allele masks other. Segregation: alleles separate in gametes. Independent assortment: traits inherit independently." },
+      { name: "Sex determination", blurb: "Human: XX = ♀, XY = ♂. Father's sperm determines sex." },
+      { name: "Evolution", blurb: "Natural selection (Darwin). Only genetic traits inherited." },
+    ],
+    misconceptions: [
+      { wrong: "Mother determines child's sex", right: "Father's sperm (X or Y) determines sex. Egg is always X." },
+      { wrong: "Acquired traits pass to children", right: "Only DNA-coded traits are inherited." },
+    ],
+    questions: ["Cross TT (tall) × Tt. Find genotype ratios.", "Explain sex determination in humans."],
+  },
+  "Our Environment": {
+    ncert: "Ch 13 · Our Environment",
+    concepts: [
+      { name: "Food chain", blurb: "Producer → primary consumer → secondary → tertiary. 10% energy transfers to next level." },
+      { name: "Ozone", blurb: "O₃ in stratosphere absorbs UV. CFCs destroy ozone → ozone hole." },
+      { name: "Biomagnification", blurb: "Toxins (DDT) concentrate at higher trophic levels." },
+    ],
+    misconceptions: [
+      { wrong: "Energy cycles in the ecosystem", right: "Energy flows one-way (sun → heat). Only matter cycles." },
+      { wrong: "Ozone depletion = global warming", right: "Different. Ozone depletion → more UV. Warming from greenhouse gases." },
+    ],
+    questions: ["Why are there rarely 5+ trophic levels?", "Explain biomagnification of DDT."],
+  },
+  // =========================== MATHS ===========================
+  "Real Numbers": {
+    ncert: "Ch 1 · Real Numbers",
+    concepts: [
+      { name: "Euclid's lemma", blurb: "a = bq + r, 0 ≤ r < b. Basis for HCF and irrationality proofs." },
+      { name: "Fundamental theorem", blurb: "Every composite = unique product of primes." },
+      { name: "Irrationality proof", blurb: "Assume √2 = p/q in lowest terms → both p and q even → contradiction." },
+    ],
+    misconceptions: [
+      { wrong: "Non-terminating decimal = irrational", right: "0.333... = 1/3 is rational. Irrational = non-terminating AND non-repeating." },
+    ],
+    questions: ["Prove √3 is irrational.", "Find LCM and HCF of 6, 72, 120."],
+  },
+  Polynomials: {
+    ncert: "Ch 2 · Polynomials",
+    concepts: [
+      { name: "Zeroes", blurb: "Values where p(x) = 0. Graphically: x-intercepts." },
+      { name: "Quadratic", blurb: "ax²+bx+c. Sum = −b/a. Product = c/a." },
+    ],
+    misconceptions: [],
+    questions: ["If α,β are zeroes of x²−5x+k and α−β=1, find k."],
+  },
+  "Linear Equations": {
+    ncert: "Ch 3 · Pair of Linear Equations",
+    concepts: [
+      { name: "Nature", blurb: "a₁/a₂ ≠ b₁/b₂ → unique. a₁/a₂ = b₁/b₂ ≠ c₁/c₂ → none. a₁/a₂ = b₁/b₂ = c₁/c₂ → infinite." },
+    ],
+    misconceptions: [
+      { wrong: "Two equations always have a unique solution", right: "They may have none or infinite solutions." },
+    ],
+    questions: ["Solve 3x−5y=4, 9x−2y=7 by elimination.", "For what k are 3x−y+8=0 and 6x−ky=−16 coincident?"],
+  },
+  "Quadratic Equations": {
+    ncert: "Ch 4 · Quadratic Equations",
+    concepts: [
+      { name: "Discriminant", blurb: "D = b²−4ac. D>0 → distinct real. D=0 → equal. D<0 → no real." },
+      { name: "Formula", blurb: "x = [−b ± √(b²−4ac)]/2a." },
+    ],
+    misconceptions: [
+      { wrong: "Every quadratic has real roots", right: "If D<0, no real roots (complex)." },
+    ],
+    questions: ["Without solving: nature of roots of 2x²−4x+5=0?", "Find k for x²+kx+64=0 to have equal roots."],
+  },
+  "Arithmetic Progressions": {
+    ncert: "Ch 5 · Arithmetic Progressions",
+    concepts: [
+      { name: "nth term", blurb: "aₙ = a+(n−1)d." },
+      { name: "Sum", blurb: "Sₙ = n/2[2a+(n−1)d] = n/2(a+l)." },
+    ],
+    misconceptions: [
+      { wrong: "d must be positive for an AP", right: "d can be negative, zero, or positive." },
+    ],
+    questions: ["How many terms of AP 9, 17, 25... sum to 636?"],
+  },
+  Triangles: {
+    ncert: "Ch 6 · Triangles",
+    concepts: [
+      { name: "Similarity", blurb: "AAA, AA, SSS, SAS." },
+      { name: "BPT", blurb: "Line ∥ to one side divides the other two proportionally. Converse also true." },
+      { name: "Pythagoras", blurb: "Hypotenuse² = base² + height². Converse: if a²=b²+c², right-angled." },
+    ],
+    misconceptions: [
+      { wrong: "Equal angles → congruent", right: "Equal angles → similar. Congruence needs equal sides too." },
+    ],
+    questions: ["In △ABC, DE∥BC. AD=3, DB=6, AE=4. Find EC."],
+  },
+  "Coordinate Geometry": {
+    ncert: "Ch 7 · Coordinate Geometry",
+    concepts: [
+      { name: "Distance", blurb: "d = √[(x₂−x₁)²+(y₂−y₁)²]." },
+      { name: "Section", blurb: "x = (mx₂+nx₁)/(m+n), y = (my₂+ny₁)/(m+n). Midpoint: m=n=1." },
+    ],
+    misconceptions: [],
+    questions: ["Check if (1,5), (2,3), (−2,−11) are collinear."],
+  },
+  Trigonometry: {
+    ncert: "Ch 8 · Introduction to Trigonometry",
+    concepts: [
+      { name: "Ratios", blurb: "sin = opp/hyp, cos = adj/hyp, tan = opp/adj." },
+      { name: "Identity", blurb: "sin²θ+cos²θ = 1. tan = sin/cos." },
+      { name: "Standard values", blurb: "sin 0°=0, sin 30°=½, sin 45°=1/√2, sin 60°=√3/2, sin 90°=1." },
+    ],
+    misconceptions: [
+      { wrong: "sin²θ+cos²θ=1 must be memorised", right: "It's Pythagoras with hypotenuse=1." },
+    ],
+    questions: ["If sin A=3/5, find cos A and tan A using identity."],
+  },
+  "Applications of Trigonometry": {
+    ncert: "Ch 9 · Some Applications of Trigonometry",
+    concepts: [
+      { name: "Elevation", blurb: "Measured upward from horizontal." },
+      { name: "Depression", blurb: "Measured downward from horizontal." },
+    ],
+    misconceptions: [],
+    questions: ["From a point 30 m from a tower, angle of elevation to top is 60°. Find tower height."],
+  },
+  Circles: {
+    ncert: "Ch 10 · Circles",
+    concepts: [
+      { name: "Tangent", blurb: "Touches at exactly one point. Radius ⟂ tangent at point of contact." },
+      { name: "Tangents from external point", blurb: "Lengths from an external point are equal." },
+    ],
+    misconceptions: [],
+    questions: ["Prove PA = PB for tangents from point P to a circle."],
+  },
+  "Areas Related to Circles": {
+    ncert: "Ch 11 · Areas Related to Circles",
+    concepts: [
+      { name: "Sector", blurb: "Area = (θ/360)×πr². Arc length = (θ/360)×2πr." },
+    ],
+    misconceptions: [
+      { wrong: "π = 22/7", right: "22/7 is an approximation. π is irrational." },
+    ],
+    questions: ["Radius 10 cm chord subtends right angle at centre. Find minor segment area."],
+  },
+  "Surface Areas & Volumes": {
+    ncert: "Ch 12 · Surface Areas and Volumes",
+    concepts: [
+      { name: "Formulas", blurb: "Cylinder: CSA=2πrh, V=πr²h. Cone: CSA=πrl, V=⅓πr²h. Sphere: SA=4πr², V=⁴⁄₃πr³." },
+      { name: "Frustum", blurb: "V = ⅓πh(r₁²+r₂²+r₁r₂)." },
+    ],
+    misconceptions: [
+      { wrong: "TSA always = sum of individual areas", right: "Hidden/overlapping surfaces not included in TSA." },
+    ],
+    questions: ["A cone (r=3.5, h=12) is mounted on a hemisphere (same r). Find TSA."],
+  },
+  Statistics: {
+    ncert: "Ch 13 · Statistics",
+    concepts: [
+      { name: "Mean", blurb: "Σfx/Σf. Direct/assumed mean/step-deviation." },
+      { name: "Median", blurb: "l + [(n/2−cf)/f]×h." },
+      { name: "Mode", blurb: "l + [(f₁−f₀)/(2f₁−f₀−f₂)]×h." },
+      { name: "Empirical", blurb: "3 median = mode + 2 mean." },
+    ],
+    misconceptions: [
+      { wrong: "Mean is always best", right: "Median is better for skewed data with outliers." },
+    ],
+    questions: ["Find median from: 0-10:5, 10-20:8, 20-30:20, 30-40:15, 40-50:7."],
+  },
+  Probability: {
+    ncert: "Ch 14 · Probability",
+    concepts: [
+      { name: "Definition", blurb: "P(E) = favourable/total. Between 0 and 1." },
+      { name: "Cards", blurb: "52 cards: 4 suits, 13 each. 26 red, 26 black. 12 face cards." },
+    ],
+    misconceptions: [],
+    questions: ["Deck: P(red king), P(face card), P(not club)?"],
+  },
+  // =========================== HISTORY ===========================
+  "Nationalism in Europe": {
+    ncert: "History Ch 1 · Nationalism in Europe",
+    concepts: [
+      { name: "French Rev origin", blurb: "1789: la patrie, le citoyen, tri-colour, nationalism spread via Napoleon's armies." },
+      { name: "Congress of Vienna 1815", blurb: "Metternich's conservative order. Restored monarchies." },
+      { name: "Unifications", blurb: "Germany: Bismarck, 3 wars, 1871. Italy: Cavour+Garibaldi+VE II." },
+    ],
+    misconceptions: [
+      { wrong: "Napoleon was a nationalist", right: "He spread some ideals but crowned himself emperor." },
+    ],
+    questions: ["Why did the 1848 Frankfurt Parliament fail?", "Compare German and Italian unification."],
+  },
+  "Nationalism in India": {
+    ncert: "History Ch 2 · Nationalism in India",
+    concepts: [
+      { name: "Non-Cooperation", blurb: "1920-22. Boycott British goods. Called off after Chauri Chaura." },
+      { name: "Civil Disobedience", blurb: "1930 Salt March. Broke salt law. Mass participation including women." },
+      { name: "Jallianwala Bagh", blurb: "1919. Rowlatt Act → protests → General Dyer fired on crowd. Turning point." },
+    ],
+    misconceptions: [
+      { wrong: "Gandhi started the freedom movement", right: "INC founded 1885. Gandhi transformed it into a mass movement post-1915." },
+    ],
+    questions: ["Why did Gandhi call off Non-Cooperation after Chauri Chaura?", "What was the significance of the Salt March?"],
+  },
+  // =========================== GEOGRAPHY ===========================
+  "Resources and Development": {
+    ncert: "Geo Ch 1 · Resources and Development",
+    concepts: [
+      { name: "Classification", blurb: "Origin: biotic/abiotic. Exhaustibility: renewable/non-renewable. Ownership: individual/community/national/international." },
+      { name: "Soil types", blurb: "Alluvial (northern plains), black (Deccan cotton soil), red (igneous), laterite, arid." },
+    ],
+    misconceptions: [],
+    questions: ["Classify: coal, forests, wind, iron ore, solar.", "Differentiate alluvial and black soil."],
+  },
+  "Water Resources": {
+    ncert: "Geo Ch 3 · Water Resources",
+    concepts: [
+      { name: "Dams", blurb: "Irrigation + electricity + flood control. Displace people, submerge forests. Controversy: Narmada Bachao Andolan." },
+      { name: "Rainwater harvesting", blurb: "Tankas (Rajasthan), stepwells (Gujarat), rooftop harvesting, check dams." },
+    ],
+    misconceptions: [],
+    questions: ["Why is irrigation important in India?"],
+  },
+  // =========================== POLITY ===========================
+  "Power Sharing": {
+    ncert: "Polity Ch 1 · Power Sharing",
+    concepts: [
+      { name: "Forms", blurb: "Horizontal (legislature/executive/judiciary). Vertical (central/state/local). Among groups and parties." },
+      { name: "Belgium vs Sri Lanka", blurb: "Belgium: accommodation prevented civil war. Sri Lanka: majoritarian rule → civil war." },
+    ],
+    misconceptions: [
+      { wrong: "Power sharing weakens a country", right: "Belgium shows it strengthens. Sri Lanka shows refusal leads to conflict." },
+    ],
+    questions: ["Compare Belgium and Sri Lanka's approaches to ethnic diversity."],
+  },
+  Federalism: {
+    ncert: "Polity Ch 2 · Federalism",
+    concepts: [
+      { name: "India's division", blurb: "Union List (97 items), State List (66), Concurrent List (47). Residuary: Union." },
+      { name: "Panchayati Raj", blurb: "1992: three-tier local govt. 33% reservation for women." },
+    ],
+    misconceptions: [
+      { wrong: "India is purely federal", right: "Quasi-federal: tilted toward Union (single constitution, citizenship, emergency override)." },
+    ],
+    questions: ["How is legislative power divided between Union and State?"],
+  },
+  "Political Parties": {
+    ncert: "Polity Ch 6 · Political Parties",
+    concepts: [
+      { name: "Functions", blurb: "Contest elections, form govt, make laws, shape opinion, provide access." },
+      { name: "National parties", blurb: "BJP, INC, CPI(M), BSP, NCP, AITC. Need: 6% votes in 4+ states OR 4 LS seats from 3+ states." },
+    ],
+    misconceptions: [],
+    questions: ["How does a party become a 'national party'?"],
+  },
+  "Outcomes of Democracy": {
+    ncert: "Polity Ch 7 · Outcomes of Democracy",
+    concepts: [
+      { name: "Accountability", blurb: "Citizens can vote out govt. Democracies don't have famines (Amartya Sen)." },
+    ],
+    misconceptions: [
+      { wrong: "Democracies always grow faster", right: "China grew faster than India. Democracy guarantees accountability, not growth." },
+    ],
+    questions: ["Why does Sen argue famines don't happen in democracies?"],
+  },
+  // =========================== ECONOMICS ===========================
+  Development: {
+    ncert: "Eco Ch 1 · Development",
+    concepts: [
+      { name: "Indicators", blurb: "Per capita income, literacy, IMR, HDI. Kerala: lower income but better health/education than Punjab." },
+    ],
+    misconceptions: [
+      { wrong: "Higher per capita income = better dev", right: "Kerala vs Punjab shows non-income factors matter equally." },
+    ],
+    questions: ["Why isn't per capita income alone sufficient?"],
+  },
+  "Sectors of Indian Economy": {
+    ncert: "Eco Ch 2 · Sectors of Indian Economy",
+    concepts: [
+      { name: "GDP", blurb: "Primary 18%, Secondary 30%, Tertiary 52% (India). Employment: Primary 45%." },
+      { name: "Organised vs unorganised", blurb: "Organised: benefits, security. Unorganised: no benefits, 93% of Indian workers." },
+    ],
+    misconceptions: [],
+    questions: ["Why is tertiary sector growing fastest?", "What is disguised unemployment?"],
+  },
+  "Money and Credit": {
+    ncert: "Eco Ch 3 · Money and Credit",
+    concepts: [
+      { name: "Money", blurb: "Medium of exchange (solves barter's double coincidence of wants). Unit of account, store of value." },
+      { name: "Formal vs informal", blurb: "Formal: banks, low interest, collateral. Informal: moneylenders, high interest, debt traps." },
+    ],
+    misconceptions: [
+      { wrong: "Banks lend their own money", right: "They lend depositors' money. Only ~15% kept as reserve." },
+    ],
+    questions: ["Compare terms of credit: bank vs moneylender. Why do poor still use moneylenders?"],
+  },
+  "Consumer Rights": {
+    ncert: "Eco Ch 5 · Consumer Rights",
+    concepts: [
+      { name: "COPRA", blurb: "1986. Three-tier consumer courts (district, state, national). Rights: safety, info, choice, hearing, redressal, education." },
+      { name: "Quality marks", blurb: "ISI (industrial), Agmark (agricultural), Hallmark (gold)." },
+    ],
+    misconceptions: [],
+    questions: ["What are the six consumer rights under COPRA?"],
+  },
+  // Catch-all for topics not yet expanded
+  Globalisation: {
+    ncert: "Eco Ch 4 / History Ch 3 · Globalisation",
+    concepts: [
+      { name: "Silk Routes", blurb: "Pre-modern trade: China to Mediterranean. Silk, spices, ideas, diseases." },
+      { name: "Modern globalisation", blurb: "MNCs, FDI, trade liberalisation, WTO. India post-1991: cheaper goods, new IT jobs, but small producers struggle." },
+    ],
+    misconceptions: [
+      { wrong: "Globalisation is recent", right: "Trade routes have existed for millennia. Modern diff: scale and speed." },
+    ],
+    questions: ["What role does WTO play in globalisation?"],
   },
 };
 
-/** Fallback for topics not explicitly in the graph. */
-const FALLBACK_KNOWLEDGE: TopicKnowledge = {
-  ncertChapter: "NCERT textbook",
-  concepts: [{ name: "Core idea", blurb: "Use NCERT terminology. Focus on definitions, equations, and diagrams." }],
+const FALLBACK: TopicKnowledge = {
+  ncert: "NCERT Class 10",
+  concepts: [{ name: "Core idea", blurb: "Use NCERT terminology, definitions, and diagrams." }],
   misconceptions: [],
   questions: [
-    "In your own words, what does this topic describe?",
-    "What is the most important equation or definition in this topic?",
-    "Can you explain one real-world application of this concept?",
+    "What does this topic describe in your own words?",
+    "What's the most important concept here?",
+    "Can you give a real-world application?",
   ],
 };
 
 function bestMatch(topic: string): string | null {
   const lower = topic.toLowerCase();
-  for (const key of Object.keys(GRAPH)) {
-    if (lower.includes(key.toLowerCase())) return key;
+  let best: string | null = null;
+  let bestLen = 0;
+  for (const key of Object.keys(G)) {
+    const score = lower.includes(key.toLowerCase()) ? key.length : 0;
+    if (score > bestLen) { best = key; bestLen = score; }
   }
-  return null;
+  return best;
 }
 
 export function getKnowledge(topic: string): TopicKnowledge {
   const key = bestMatch(topic);
-  return key ? GRAPH[key] : FALLBACK_KNOWLEDGE;
+  return key ? G[key] : FALLBACK;
 }
 
-/** Compact representation injected into the coach system prompt. */
 export function knowledgeAsPrompt(topic: string): string {
   const k = getKnowledge(topic);
-  const conceptLines = k.concepts.map((c) => `  - ${c.name}: ${c.blurb}`).join("\n");
-  const misconceptionLines = k.misconceptions.map((m) => `  - Wrong: "${m.wrong}" → Right: "${m.right}"`).join("\n");
-  const questionLines = k.questions.map((q, i) => `  ${i + 1}. ${q}`).join("\n");
-
-  return `### Topic Knowledge (${k.ncertChapter}) ###
-Core concepts the student should know:
-${conceptLines}
-
-Common misconceptions to watch for:
-${misconceptionLines}
-
-Suggested questions (easiest to hardest; pick one that fits the student's level):
-${questionLines}`;
+  const c = k.concepts.map((c) => `  \u2022 ${c.name}: ${c.blurb}`).join("\n");
+  const m = k.misconceptions.map((m) => `  \u2022 WRONG: "${m.wrong}" \u2192 CORRECT: "${m.right}"`).join("\n");
+  const q = k.questions.map((q, i) => `  ${i + 1}. ${q}`).join("\n");
+  return `### NCERT Knowledge (${k.ncert}) ###\nCore concepts:\n${c}\n\nCommon misconceptions:\n${m}\n\nScaffolded questions:\n${q}`;
 }

@@ -7,6 +7,7 @@ import { ThemeToggle } from "@/components/shell/ThemeToggle";
 import {
   AtlasMark,
   CalendarIcon,
+  CoachIcon,
   ImproveIcon,
   LearnIcon,
   PlanIcon,
@@ -18,7 +19,8 @@ import {
 const destinations = [
   { href: "/", label: "Today", pillar: "Plan", Icon: PlanIcon },
   { href: "/calendar", label: "Calendar", pillar: "Plan", Icon: CalendarIcon },
-  { href: "/focus", label: "Focus", pillar: "Learn", Icon: LearnIcon },
+  { href: "/focus", label: "Pomodoro", pillar: "Learn", Icon: LearnIcon },
+  { href: "/coach", label: "Coach", pillar: "Learn", Icon: CoachIcon },
   { href: "/graph", label: "Graph", pillar: "Track", Icon: TrackIcon },
   { href: "/progress", label: "Progress", pillar: "Improve", Icon: ImproveIcon },
 ];

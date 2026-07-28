@@ -78,15 +78,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     setError(null);
     try {
-      const [subsRes, topsRes, missRes] = await Promise.all([
+      const [studRes, subsRes, topsRes, missRes] = await Promise.all([
+        fetch("/api/student").then((r) => r.ok ? r.json() : null),
         fetch("/api/topics?type=subjects").then((r) => r.ok ? r.json() : null),
         fetch("/api/topics").then((r) => r.ok ? r.json() : null),
         fetch("/api/mission").then((r) => r.ok ? r.json() : null),
       ]);
 
-      if (mounted.current && subsRes) setSubjects(subsRes);
-      if (mounted.current && topsRes) setTopics(topsRes);
-      if (mounted.current && missRes) setMission(missRes);
+      if (mounted.current && studRes?.id) setStudent(studRes);
+      if (mounted.current && subsRes) setSubjects(Array.isArray(subsRes) ? subsRes : mockSubjects);
+      if (mounted.current && topsRes) setTopics(Array.isArray(topsRes) ? topsRes : mockTopics);
+      if (mounted.current && missRes?.tasks) setMission(missRes);
     } catch {
       // Fall back to mock data — already loaded
     } finally {
