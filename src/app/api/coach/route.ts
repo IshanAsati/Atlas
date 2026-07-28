@@ -61,13 +61,32 @@ export async function POST(request: Request) {
         const mergedTurns = mergeTurns(memory, body.turns);
         const requestWithMemory: CoachRequest = { ...body, turns: mergedTurns };
 
-        const finalTurns = await runToolLoop(requestWithMemory, key, send);
+        send({ type: "source", value: "live" });
+
+        const { finalTurns, usedTools } = await runToolLoop(requestWithMemory, key, send);
 
         // Persist final thread
         await saveThread(body.context.topicId, finalTurns);
 
-        // Stream the final response with all tool results already injected
-        await streamLive({ ...body, turns: finalTurns }, key, send);
+        if (usedTools) {
+          // Tool loop already streamed everything — just replay the
+          // final coach turn as token frames so the client sees it.
+          const lastCoach = [...finalTurns].reverse().find((t) => t.role === "coach");
+          if (lastCoach) {
+            for (const word of lastCoach.body.split(/(\s+)/)) {
+              if (!word) continue;
+              send({ type: "token", text: word });
+              await new Promise((r) => setTimeout(r, 12));
+            }
+            const result = extractResult(lastCoach.body);
+            send({ type: "result", result });
+          } else {
+            send({ type: "result", result: EMPTY_RESULT });
+          }
+        } else {
+          // No tools used — normal streaming path
+          await streamLive({ ...body, turns: finalTurns }, key, send);
+        }
       } catch (error) {
         const reason = error instanceof Error ? error.message : "unknown error";
         console.error("[coach] live call failed, falling back offline:", reason);
@@ -87,14 +106,12 @@ export async function POST(request: Request) {
   });
 }
 
-/** Merge memory and new turns, avoiding duplicates by role+body. */
+/** Merge memory and new turns, avoiding exact duplicate consecutive pairs. */
 function mergeTurns(memory: CoachTurn[], incoming: CoachTurn[]): CoachTurn[] {
-  const seen = new Set<string>();
-  const out: CoachTurn[] = [];
-  for (const turn of [...memory, ...incoming]) {
-    const key = `${turn.role}:${turn.body}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
+  const out = [...memory];
+  for (const turn of incoming) {
+    const last = out[out.length - 1];
+    if (last && last.role === turn.role && last.body === turn.body) continue;
     out.push(turn);
   }
   return out;
@@ -106,8 +123,8 @@ async function runToolLoop(
   key: string,
   send: (frame: CoachFrame) => void,
   depth = 0,
-): Promise<CoachTurn[]> {
-  if (depth > 3) return body.turns; // safety limit
+): Promise<{ finalTurns: CoachTurn[]; usedTools: boolean }> {
+  if (depth > 3) return { finalTurns: body.turns, usedTools: true };
 
   const response = await callDeepSeekNonStreaming(body, key);
   if (!response.ok) {
@@ -134,9 +151,9 @@ async function runToolLoop(
   if (toolCalls.length === 0) {
     // No tools — final answer ready
     if (content.trim()) {
-      return [...body.turns, { role: "coach", body: content.trim() }];
+      return { finalTurns: [...body.turns, { role: "coach", body: content.trim() }], usedTools: depth > 0 };
     }
-    return body.turns;
+    return { finalTurns: body.turns, usedTools: depth > 0 };
   }
 
   // Append coach turn that issued tool calls

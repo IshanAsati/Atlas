@@ -94,9 +94,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  /* Load from API on mount, falling back silently to mock data already set. */
+  const inited = useRef(false);
   useEffect(() => {
-    mounted.current = true;
-    return () => { mounted.current = false; };
+    if (inited.current) return;
+    inited.current = true;
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const updateTaskStatus = useCallback(

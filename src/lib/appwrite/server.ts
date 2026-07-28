@@ -21,14 +21,17 @@ async function init() {
   if (_databases) return;
   if (_initing) return;
   _initing = true;
-  const { Client, Databases, Storage } = await import("node-appwrite");
-  const client = new Client()
-    .setEndpoint(process.env.APPWRITE_ENDPOINT!)
-    .setProject(process.env.APPWRITE_PROJECT_ID!)
-    .setKey(process.env.APPWRITE_SECRET_KEY!);
-  _databases = new Databases(client);
-  _storage = new Storage(client);
-  _initing = false;
+  try {
+    const { Client, Databases, Storage } = await import("node-appwrite");
+    const client = new Client()
+      .setEndpoint(process.env.APPWRITE_ENDPOINT!)
+      .setProject(process.env.APPWRITE_PROJECT_ID!)
+      .setKey(process.env.APPWRITE_SECRET_KEY!);
+    _databases = new Databases(client);
+    _storage = new Storage(client);
+  } finally {
+    _initing = false;
+  }
 }
 
 export async function getDatabases() {
