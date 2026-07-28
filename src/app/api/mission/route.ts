@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { denyIfSignedOut } from "@/lib/auth/guard";
 import { getServerMission, generateMission, updateTaskStatus } from "@/lib/data";
+import { localISO } from "@/lib/date";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -38,7 +39,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json().catch(() => ({}));
-    const date = body.date ?? new Date().toISOString().slice(0, 10);
+    const date = body.date ?? localISO();
     const studyTime = body.studyTime ?? 120;
     const mission = await generateMission(date, studyTime);
     return NextResponse.json(mission);

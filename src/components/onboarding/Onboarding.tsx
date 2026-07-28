@@ -15,6 +15,7 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { useAtlasData } from "@/lib/atlas-context";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { MIN_OCR_CHARS, isImageFile, ocrImage } from "@/lib/extract/ocr";
+import { localISO } from "@/lib/date";
 
 const STEPS = ["Syllabus", "Confirm", "Time"];
 
@@ -300,7 +301,7 @@ export function Onboarding() {
     }
 
     try {
-      const date = new Date().toISOString().slice(0, 10);
+      const date = localISO();
       await fetch("/api/mission", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

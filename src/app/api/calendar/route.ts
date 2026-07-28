@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { denyIfSignedOut } from "@/lib/auth/guard";
 import { generateSchedule, getAllCalendarDays, logStudyMinutes } from "@/lib/data";
+import { localISO } from "@/lib/date";
 
 export const dynamic = "force-dynamic";
 
@@ -62,7 +63,7 @@ export async function PATCH(request: Request) {
 
   try {
     const body = (await request.json()) as { date?: string; minutes?: number };
-    const date = body.date ?? new Date().toISOString().slice(0, 10);
+    const date = body.date ?? localISO();
     const minutes = Number(body.minutes);
 
     if (!ISO_DATE.test(date) || !Number.isFinite(minutes) || minutes <= 0) {

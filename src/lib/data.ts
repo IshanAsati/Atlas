@@ -11,6 +11,8 @@ import {
 
 import { getSessionUserId } from "@/lib/auth/session";
 
+import { localISO } from "@/lib/date";
+
 import {
   daysUntil,
   type Subject,
@@ -211,7 +213,7 @@ export interface ServerMission {
 export async function getServerMission(date?: string): Promise<ServerMission | null> {
   const sid = await resolveStudentId();
   if (!sid) return null;
-  const target = date ?? new Date().toISOString().slice(0, 10);
+  const target = date ?? localISO();
   const Query = await Q();
   const missions = await safeList<Omit<ServerMission, "tasks">>(COLLECTIONS.missions, [
     Query.equal("studentId", sid),
@@ -397,7 +399,7 @@ export async function saveMission(
  * Assigns kind: "learn" (confidence < 40), "quiz" (40–70), "revise" (≥ 70).
  */
 export async function generateMission(
-  date: string = new Date().toISOString().slice(0, 10),
+  date: string = localISO(),
   studyTime: number = 120,
 ): Promise<ServerMission | null> {
   const allTopics = await getServerTopics();

@@ -11,7 +11,7 @@
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { Client, Databases, ID, Users } from "node-appwrite";
+import { Client, Databases, ID, Query, Users } from "node-appwrite";
 
 /* ----- env loader ----- */
 (function loadEnv() {
@@ -90,11 +90,14 @@ async function main() {
   console.log("  student profile");
 
   // Subjects
+  /* No topicCount here — the subjects collection has no such attribute and
+     Appwrite rejects unknown fields, which failed the whole seed. */
+  const PHYSICS_IN = 16;
   const subs = [
-    { name: "Physics", discipline: "Science", examDate: "2026-08-14", accent: "rust", topicCount: 4 },
-    { name: "Chemistry", discipline: "Science", examDate: "2026-08-18", accent: "amber", topicCount: 3 },
-    { name: "Biology", discipline: "Science", examDate: "2026-08-21", accent: "teal", topicCount: 2 },
-    { name: "Mathematics Standard", discipline: "Mathematics", examDate: "2026-08-26", accent: "teal", topicCount: 3 },
+    { name: "Physics", discipline: "Science", examDate: iso(PHYSICS_IN), accent: "rust" },
+    { name: "Chemistry", discipline: "Science", examDate: iso(20), accent: "amber" },
+    { name: "Biology", discipline: "Science", examDate: iso(23), accent: "teal" },
+    { name: "Mathematics Standard", discipline: "Mathematics", examDate: iso(28), accent: "teal" },
   ];
   const subjectIds = [];
   for (const s of subs) {
@@ -109,18 +112,18 @@ async function main() {
   // Topics with realistic confidence — keyed to generated subject IDs
   const [sId1, sId2, sId3, sId4] = subjectIds;
   const topics = [
-    { subjectId: sId1, name: "Electricity", confidence: 90, nextReview: "2026-08-04", lastSeenDays: 2 },
-    { subjectId: sId1, name: "Light — Reflection", confidence: 65, nextReview: "2026-07-29", lastSeenDays: 6 },
-    { subjectId: sId1, name: "Magnetic Effects", confidence: 30, nextReview: "2026-07-27", lastSeenDays: 11 },
-    { subjectId: sId1, name: "Sources of Energy", confidence: 0, nextReview: "2026-07-28", lastSeenDays: 0 },
-    { subjectId: sId2, name: "Acids, Bases & Salts", confidence: 78, nextReview: "2026-08-02", lastSeenDays: 3 },
-    { subjectId: sId2, name: "Carbon Compounds", confidence: 44, nextReview: "2026-07-27", lastSeenDays: 9 },
-    { subjectId: sId2, name: "Periodic Classification", confidence: 61, nextReview: "2026-07-31", lastSeenDays: 5 },
-    { subjectId: sId3, name: "Life Processes", confidence: 82, nextReview: "2026-08-06", lastSeenDays: 1 },
-    { subjectId: sId3, name: "Heredity", confidence: 55, nextReview: "2026-07-30", lastSeenDays: 7 },
-    { subjectId: sId4, name: "Quadratic Equations", confidence: 88, nextReview: "2026-08-05", lastSeenDays: 2 },
-    { subjectId: sId4, name: "Trigonometry", confidence: 37, nextReview: "2026-07-27", lastSeenDays: 10 },
-    { subjectId: sId4, name: "Surface Areas & Volumes", confidence: 0, nextReview: "2026-08-01", lastSeenDays: 0 },
+    { subjectId: sId1, name: "Electricity", confidence: 90, nextReview: iso(6), lastSeenDays: 2 },
+    { subjectId: sId1, name: "Light — Reflection", confidence: 65, nextReview: iso(0), lastSeenDays: 6 },
+    { subjectId: sId1, name: "Magnetic Effects", confidence: 30, nextReview: iso(-2), lastSeenDays: 11 },
+    { subjectId: sId1, name: "Sources of Energy", confidence: 0, nextReview: iso(-1), lastSeenDays: 0 },
+    { subjectId: sId2, name: "Acids, Bases & Salts", confidence: 78, nextReview: iso(4), lastSeenDays: 3 },
+    { subjectId: sId2, name: "Carbon Compounds", confidence: 44, nextReview: iso(-2), lastSeenDays: 9 },
+    { subjectId: sId2, name: "Periodic Classification", confidence: 61, nextReview: iso(2), lastSeenDays: 5 },
+    { subjectId: sId3, name: "Life Processes", confidence: 82, nextReview: iso(8), lastSeenDays: 1 },
+    { subjectId: sId3, name: "Heredity", confidence: 55, nextReview: iso(1), lastSeenDays: 7 },
+    { subjectId: sId4, name: "Quadratic Equations", confidence: 88, nextReview: iso(7), lastSeenDays: 2 },
+    { subjectId: sId4, name: "Trigonometry", confidence: 37, nextReview: iso(-2), lastSeenDays: 10 },
+    { subjectId: sId4, name: "Surface Areas & Volumes", confidence: 0, nextReview: iso(3), lastSeenDays: 0 },
   ];
   const topicIds = [];
   for (const t of topics) {
@@ -130,7 +133,7 @@ async function main() {
   console.log(`  ${topics.length} topics`);
 
   // Today's mission
-  const today = new Date().toISOString().slice(0, 10);
+  const today = iso(0);
   const mId = `m-${userId}-${today}`;
   try { await databases.deleteDocument(DB, "missions", mId); } catch {}
   await databases.createDocument(DB, "missions", mId, {
@@ -143,7 +146,7 @@ async function main() {
   const tMap = Object.fromEntries(topicIds.map((t) => [t.name, t.id]));
 
   const missionTasks = [
-    { topicId: tMap["Magnetic Effects"], topic: "Magnetic Effects", subject: "Physics", reason: "Confidence fell to 30% and the Physics paper is 18 days out.", minutes: 40, status: "active", kind: "revise", order: 0 },
+    { topicId: tMap["Magnetic Effects"], topic: "Magnetic Effects", subject: "Physics", reason: `Confidence fell to 30% and the Physics paper is ${PHYSICS_IN} days out.`, minutes: 40, status: "active", kind: "revise", order: 0 },
     { topicId: tMap["Trigonometry"], topic: "Trigonometry", subject: "Mathematics Standard", reason: "Ten days untouched. Identities decay fastest.", minutes: 35, status: "pending", kind: "revise", order: 1 },
     { topicId: tMap["Carbon Compounds"], topic: "Carbon Compounds", subject: "Chemistry", reason: "You missed 3 of 5 nomenclature questions on Thursday.", minutes: 28, status: "pending", kind: "quiz", order: 2 },
     { topicId: tMap["Light — Reflection"], topic: "Light — Reflection", subject: "Physics", reason: "Scheduled review lands today. Short top-up only.", minutes: 15, status: "complete", kind: "revise", order: 3 },
@@ -154,29 +157,19 @@ async function main() {
   console.log(`  mission (${missionTasks.length} tasks)`);
 
   // Calendar — 3 weeks of history
-  const calendar = [
-    { date: "2026-07-06", state: "complete", minutes: 120 },
-    { date: "2026-07-07", state: "complete", minutes: 135 },
-    { date: "2026-07-08", state: "partial", minutes: 45 },
-    { date: "2026-07-09", state: "complete", minutes: 110 },
-    { date: "2026-07-10", state: "missed" },
-    { date: "2026-07-11", state: "complete", minutes: 160 },
-    { date: "2026-07-12", state: "complete", minutes: 95 },
-    { date: "2026-07-13", state: "complete", minutes: 120 },
-    { date: "2026-07-14", state: "partial", minutes: 60 },
-    { date: "2026-07-15", state: "complete", minutes: 128 },
-    { date: "2026-07-16", state: "missed" },
-    { date: "2026-07-17", state: "complete", minutes: 118 },
-    { date: "2026-07-18", state: "complete", minutes: 142 },
-    { date: "2026-07-19", state: "complete", minutes: 90 },
-    { date: "2026-07-20", state: "complete", minutes: 105 },
-    { date: "2026-07-21", state: "complete", minutes: 130 },
-    { date: "2026-07-22", state: "missed" },
-    { date: "2026-07-23", state: "partial", minutes: 55 },
-    { date: "2026-07-24", state: "complete", minutes: 122 },
-    { date: "2026-07-25", state: "complete", minutes: 165 },
-    { date: "2026-07-26", state: "complete", minutes: 74 },
+  /* Three weeks ending yesterday. Today is deliberately left blank — the
+     student is about to study it, and that is the whole demo. */
+  const shape = [
+    120, 135, 45, 110, 0, 160, 95,
+    120, 60, 128, 0, 118, 142, 90,
+    105, 130, 0, 55, 122, 165, 74,
   ];
+  const calendar = shape.map((minutes, i) => ({
+    date: iso(-(shape.length - i)),
+    state: minutes === 0 ? "missed" : minutes >= 120 ? "complete" : "partial",
+    minutes,
+  }));
+
   for (const cd of calendar) {
     await databases.createDocument(DB, "calendar_days", ID.unique(), {
       ...cd,
@@ -203,8 +196,12 @@ async function purgeUser(databases, userId) {
   const attrCollections = ["subjects", "topics", "missions", "mission_tasks", "calendar_days", "coach_threads"];
   for (const name of attrCollections) {
     try {
+      /* Built with Query, not the legacy `equal("f","v")` string — Appwrite
+         rejects that, the catch below swallowed it, and so nothing was ever
+         purged. Re-running the seed silently doubled every collection. */
       const { documents } = await databases.listDocuments(DB, name, [
-        `equal("studentId", "${userId}")`,
+        Query.equal("studentId", userId),
+        Query.limit(500),
       ]);
       for (const doc of documents) {
         await databases.deleteDocument(DB, name, doc.$id);

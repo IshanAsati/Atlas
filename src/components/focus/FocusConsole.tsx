@@ -14,6 +14,7 @@ import { applyConfidenceDelta } from "@/lib/liveConfidence";
 import { useAtlasData } from "@/lib/atlas-context";
 import { useChime } from "@/lib/useChime";
 import type { MissionTask } from "@/lib/mock";
+import { localISO } from "@/lib/date";
 
 const PRESETS = [
   { label: "15 min", session: 15 * 60, break: 5 * 60 },
@@ -95,7 +96,7 @@ export function FocusConsole() {
       fetch("/api/calendar", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: new Date().toISOString().slice(0, 10), minutes }),
+        body: JSON.stringify({ date: localISO(), minutes }),
       })
         .then(() => refresh())
         .catch(() => {

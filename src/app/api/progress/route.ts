@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { denyIfSignedOut } from "@/lib/auth/guard";
 import { getServerStudent, getServerSubjects, getServerTopics, getServerCalendarDays } from "@/lib/data";
+import { localISO } from "@/lib/date";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,7 @@ function calcStreak(days: { date: string; state: string }[]): number {
   for (let i = 0; i < 365; i++) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
-    const key = d.toISOString().slice(0, 10);
+    const key = localISO(d);
     const record = days.find((r) => r.date === key);
     if (record?.state === "complete" || record?.state === "partial") {
       streak++;
@@ -37,7 +38,7 @@ function calcMomentumHistory(days: { date: string; state: string; minutes: numbe
   for (let i = 13; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
-    const key = d.toISOString().slice(0, 10);
+    const key = localISO(d);
     const record = days.find((r) => r.date === key);
     if (!record || record.state === "missed") {
       momentum = Math.max(0, momentum - 8);
@@ -59,7 +60,7 @@ function getWeekDays(): { day: string; date: string }[] {
     d.setDate(d.getDate() - i);
     days.push({
       day: d.toLocaleDateString("en", { weekday: "short" }),
-      date: d.toISOString().slice(0, 10),
+      date: localISO(d),
     });
   }
   return days;
