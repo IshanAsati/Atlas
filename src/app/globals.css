@@ -67,35 +67,42 @@
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --surface: #262b28;
-  --surface-hi: #2e3430;
-  --surface-lo: #1f2421;
-  --emboss: #363d38;
-  --relief: #131714;
+  --surface: #1e2320;
+  --surface-hi: #2a302c;
+  --surface-lo: #161a17;
+  --emboss: #3d453f;
+  --relief: #0c0f0d;
 
-  --groove: #1d221f;
-  --groove-hatch: #272d29;
-  --hairline: #171c19;
-  --tick: #4b534e;
-  --tick-strong: #7c857f;
+  --groove: #171c19;
+  --groove-hatch: #222724;
+  --hairline: #121613;
+  --tick: #3d453f;
+  --tick-strong: #6b756d;
 
-  --ink: #e7ece8;
-  --ink-2: #a3aca6;
-  --ink-3: #78817b;
-  --on-accent: #141a17;
+  --ink: #eef2ee;
+  --ink-2: #9aa39c;
+  --ink-3: #6b756d;
+  --on-accent: #0f1311;
 
   --teal: #2bcdb6;
-  --teal-deep: #5ee2ce;
-  --teal-wash: #1c2f2c;
+  --teal-deep: #6ee6d4;
+  --teal-wash: #1a2e2b;
   --amber: #e8993f;
-  --amber-deep: #f2b76d;
-  --amber-wash: #2f2519;
+  --amber-deep: #f5c46a;
+  --amber-wash: #2d2318;
   --rust: #d4644c;
-  --rust-wash: #301d19;
+  --rust-wash: #2e1d19;
 
-  --page: linear-gradient(148deg, #2c322e 0%, #262b28 45%, #1e2320 100%);
-  --grain: 0.04;
-  --needle-shadow: rgba(0, 0, 0, 0.55);
+  --page: linear-gradient(148deg, #2a302c 0%, #1e2320 45%, #161a17 100%);
+  --grain: 0.05;
+  --needle-shadow: rgba(0, 0, 0, 0.6);
+
+  --sh-raised-sm: 2px 2px 5px var(--relief), -2px -2px 5px var(--emboss);
+  --sh-raised: 6px 6px 13px var(--relief), -5px -5px 12px var(--emboss);
+  --sh-raised-lg: 14px 14px 30px var(--relief), -11px -11px 24px var(--emboss);
+  --sh-inset: inset 4px 4px 9px var(--relief), inset -4px -4px 9px var(--emboss);
+  --sh-inset-deep: inset 7px 7px 15px var(--relief), inset -6px -6px 13px var(--emboss);
+  --sh-pressed: inset 3px 3px 7px var(--relief), inset -3px -3px 7px var(--emboss);
 }
 
 @theme inline {
@@ -150,6 +157,7 @@
 html {
   height: 100%;
   background: var(--surface);
+  transition: background 0.3s ease;
 }
 
 body {
@@ -159,6 +167,9 @@ body {
   background: var(--page);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
+  transition:
+    color 0.3s ease,
+    background 0.3s ease;
 }
 
 /* Concrete tooth. Without it the surface reads as plastic. */
@@ -169,6 +180,7 @@ body::before {
   z-index: 0;
   pointer-events: none;
   opacity: var(--grain);
+  transition: opacity 0.3s ease;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
