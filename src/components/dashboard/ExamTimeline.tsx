@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { Groove, Micro, Panel } from "@/components/ui/Panel";
 import { EmptyBay, Skeleton } from "@/components/ui/States";
 import { useAtlasData } from "@/lib/atlas-context";
 import { daysUntil } from "@/lib/mock";
+import { ChevronIcon } from "@/components/ui/Icons";
 
 const HORIZON = 35; // days shown on the track
 
@@ -96,11 +98,12 @@ export function ExamTimeline() {
         })}
       </div>
 
-      <ul className="mt-5 space-y-px overflow-hidden rounded-key shadow-inset">
+      <div className="mt-5 space-y-px overflow-hidden rounded-key shadow-inset">
         {upcoming.map((subject) => (
-          <li
+          <Link
             key={subject.id}
-            className="flex items-center justify-between gap-3 px-4 py-3"
+            href="/calendar"
+            className="flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-base-lo/40"
           >
             <span className="flex items-center gap-2.5">
               <span
@@ -113,9 +116,9 @@ export function ExamTimeline() {
               <span className="readout text-[0.95rem] font-semibold text-ink">{subject.days}</span>
               <Micro>days</Micro>
             </span>
-          </li>
+          </Link>
         ))}
-      </ul>
+      </div>
       </>
       )}
     </Panel>

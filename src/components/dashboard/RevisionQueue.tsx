@@ -6,7 +6,7 @@ import { Groove, Micro, Panel } from "@/components/ui/Panel";
 import { ConfidenceMeter } from "@/components/ui/Meters";
 import { EmptyBay, SkeletonMeterRow } from "@/components/ui/States";
 import { statusLabel } from "@/lib/status";
-import { ChevronIcon } from "@/components/ui/Icons";
+import { ChevronIcon, ArrowIcon } from "@/components/ui/Icons";
 import { useConfidenceOverrides } from "@/lib/liveConfidence";
 import { useAtlasData } from "@/lib/atlas-context";
 import { topicStatus } from "@/lib/mock";
@@ -82,21 +82,29 @@ export function RevisionQueue() {
             const status = topicStatus(topic.confidence, topic.lastSeenDays);
             return (
               <li key={topic.id}>
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="truncate text-[0.9rem] font-medium text-ink">{topic.name}</span>
-                  <span className="readout shrink-0 text-[0.7rem] font-semibold text-ink-2">
-                    {topic.confidence}%
-                  </span>
-                </div>
-                <div className="mt-2">
-                  <ConfidenceMeter value={topic.confidence} status={status} height={8} />
-                </div>
-                <div className="mt-1.5 flex items-center justify-between gap-3">
-                  <Micro>{subjectName(topic.subjectId)}</Micro>
-                  <Micro className={status === "fading" ? "text-amber-deep" : "text-ink-3"}>
-                    {statusLabel[status]} · {topic.lastSeenDays}d ago
-                  </Micro>
-                </div>
+                <Link
+                  href={`/focus?topic=${topic.id}`}
+                  className="group block rounded-key px-1 py-1.5 transition-all hover:bg-linear-145 hover:from-base-lo hover:to-base-hi hover:shadow-inset -mx-1"
+                >
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="truncate text-[0.9rem] font-medium text-ink group-hover:text-teal-deep transition-colors">{topic.name}</span>
+                    <span className="readout shrink-0 text-[0.7rem] font-semibold text-ink-2">
+                      {topic.confidence}%
+                    </span>
+                  </div>
+                  <div className="mt-2">
+                    <ConfidenceMeter value={topic.confidence} status={status} height={8} />
+                  </div>
+                  <div className="mt-1.5 flex items-center justify-between gap-3">
+                    <Micro>{subjectName(topic.subjectId)}</Micro>
+                    <Micro className="flex items-center gap-1.5">
+                      <span className={status === "fading" ? "text-amber-deep" : "text-ink-3"}>
+                        {statusLabel[status]} · {topic.lastSeenDays}d ago
+                      </span>
+                      <ArrowIcon width={10} height={10} className="text-ink-3 opacity-0 -translate-x-1 transition-all group-hover:opacity-100 group-hover:translate-x-0" />
+                    </Micro>
+                  </div>
+                </Link>
               </li>
             );
           })}

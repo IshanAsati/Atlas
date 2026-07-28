@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { Groove, Micro, Panel } from "@/components/ui/Panel";
 import { ConfidenceMeter, ProgressRing } from "@/components/ui/Meters";
@@ -127,13 +128,18 @@ export default function ProgressPage() {
         <ul className="grid gap-5 sm:grid-cols-2">
           {subjectConfidence.map((subj) => (
             <li key={subj.id}>
-              <div className="flex items-baseline justify-between gap-3">
-                <span className="text-[0.9rem] font-medium text-ink">{subj.name}</span>
-                <span className="readout text-[0.75rem] font-semibold text-ink-2">{subj.confidence}%</span>
-              </div>
-              <div className="mt-2">
-                <ConfidenceMeter value={subj.confidence} status={subj.confidence >= 75 ? "strong" : subj.confidence >= 45 ? "steady" : "fading"} height={9} />
-              </div>
+              <Link
+                href="/graph"
+                className="block rounded-key p-2 -m-2 transition-colors hover:bg-base-lo/30"
+              >
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-[0.9rem] font-medium text-ink">{subj.name}</span>
+                  <span className="readout text-[0.75rem] font-semibold text-ink-2">{subj.confidence}%</span>
+                </div>
+                <div className="mt-2">
+                  <ConfidenceMeter value={subj.confidence} status={subj.confidence >= 75 ? "strong" : subj.confidence >= 45 ? "steady" : "fading"} height={9} />
+                </div>
+              </Link>
             </li>
           ))}
         </ul>
