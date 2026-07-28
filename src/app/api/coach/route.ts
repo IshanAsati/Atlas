@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { toChatMessages } from "@/lib/coach/prompt";
+import { toChatMessages, TOOLS } from "@/lib/coach/prompt";
 import { offlineReply } from "@/lib/coach/offline";
 import { loadThread, saveThread } from "@/lib/coach/memory";
+import { executeTool } from "@/lib/coach/tools";
 import {
   EMPTY_RESULT,
   SENTINEL,
@@ -47,12 +48,17 @@ export async function POST(request: Request) {
 
       try {
         const memory = await loadThread(body.context.topicId);
-        const turns = mergeTurns(memory, body.turns);
+        const mergedTurns = mergeTurns(memory, body.turns);
+        const requestWithMemory: CoachRequest = { ...body, turns: mergedTurns };
 
-        await streamLive({ ...body, turns }, key, send);
+        send({ type: "source", value: "live" });
 
-        const lastCoach = [...turns, ...body.turns.filter((t) => t.role === "coach")];
-        await saveThread(body.context.topicId, lastCoach);
+        // Single non-streaming call — DeepSeek either responds directly or calls tools
+        await runToolLoop(requestWithMemory, key, send);
+
+        // Persist thread
+        const allCoachTurns = [...mergedTurns, ...body.turns.filter((t) => t.role === "coach")].slice(-20);
+        await saveThread(body.context.topicId, allCoachTurns);
       } catch (error) {
         const reason = error instanceof Error ? error.message : "unknown error";
         console.error("[coach] live call failed, falling back offline:", reason);
@@ -82,99 +88,81 @@ function mergeTurns(memory: CoachTurn[], incoming: CoachTurn[]): CoachTurn[] {
   return out;
 }
 
-async function streamLive(
+async function runToolLoop(
   body: CoachRequest,
   key: string,
   send: (frame: CoachFrame) => void,
-) {
+  depth = 0,
+): Promise<void> {
+  if (depth > 3) return;
+
   const response = await fetch(DEEPSEEK_URL, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${key}`,
-    },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
     body: JSON.stringify({
       model: MODEL,
       messages: toChatMessages(body.context, body.turns),
-      stream: true,
+      tools: TOOLS,
       temperature: 0.6,
-      max_tokens: 600,
+      max_tokens: 800,
     }),
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
 
-  if (!response.ok || !response.body) {
+  if (!response.ok) {
     const detail = await response.text().catch(() => "");
     throw new Error(`DeepSeek ${response.status}: ${detail.slice(0, 200)}`);
   }
 
-  send({ type: "source", value: "live" });
+  const data = (await response.json()) as {
+    choices?: { message?: { content?: string; tool_calls?: { id: string; function: { name: string; arguments: string } }[] } }[];
+  };
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let sse = "";
-  let full = "";
-  let emitted = 0;
-  let cut = -1;
+  const message = data.choices?.[0]?.message;
+  const content = message?.content ?? "";
+  const toolCalls = message?.tool_calls ?? [];
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    sse += decoder.decode(value, { stream: true });
-    const lines = sse.split("\n");
-    sse = lines.pop() ?? "";
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith("data:")) continue;
-      const payload = trimmed.slice(5).trim();
-      if (!payload || payload === "[DONE]") continue;
-
-      let delta = "";
-      try {
-        const parsed = JSON.parse(payload);
-        delta = parsed?.choices?.[0]?.delta?.content ?? "";
-      } catch {
-        continue;
-      }
-      if (!delta) continue;
-
-      full += delta;
-
-      if (cut === -1) {
-        const found = full.indexOf(SENTINEL);
-        if (found !== -1) {
-          cut = found;
-          if (found > emitted) send({ type: "token", text: full.slice(emitted, found) });
-          emitted = found;
-        } else {
-          const safe = full.length - (SENTINEL.length - 1);
-          if (safe > emitted) {
-            send({ type: "token", text: full.slice(emitted, safe) });
-            emitted = safe;
-          }
-        }
-      }
+  if (toolCalls.length === 0) {
+    // Final answer — stream it token by token
+    for (const word of content.split(/(\s+)/)) {
+      if (!word) continue;
+      send({ type: "token", text: word });
+      await new Promise((r) => setTimeout(r, 12));
     }
+    const result = extractResult(content);
+    send({ type: "result", result });
+    return;
   }
 
-  if (cut === -1 && full.length > emitted) {
-    send({ type: "token", text: full.slice(emitted) });
+  // Execute each tool and append results
+  const turnsAfterCall: CoachTurn[] = [
+    ...body.turns,
+    { role: "coach", body: content || "Let me check that.", toolCalls: toolCalls.map((t) => ({ id: t.id, function: t.function })) },
+  ];
+
+  for (const call of toolCalls) {
+    send({ type: "tool_call", call: { id: call.id, function: call.function } });
+    const toolResult = await executeTool({ id: call.id, function: call.function });
+    send({ type: "tool_result", callId: call.id, result: toolResult.result });
+    if (toolResult.action) {
+      send({ type: "action", action: toolResult.action });
+    }
+    turnsAfterCall.push({
+      role: "student",
+      body: `[tool result for ${call.function.name}]: ${toolResult.result}`,
+    });
   }
 
-  send({ type: "result", result: extractResult(full) });
+  await runToolLoop({ ...body, turns: turnsAfterCall }, key, send, depth + 1);
 }
 
 function extractResult(full: string): CoachResult {
   const at = full.indexOf(SENTINEL);
   if (at === -1) return EMPTY_RESULT;
-
   const tail = full.slice(at + SENTINEL.length).trim();
   const start = tail.indexOf("{");
   const end = tail.lastIndexOf("}");
   if (start === -1 || end <= start) return EMPTY_RESULT;
-
   try {
     return normaliseResult(JSON.parse(tail.slice(start, end + 1)));
   } catch {
@@ -185,13 +173,10 @@ function extractResult(full: string): CoachResult {
 async function streamOffline(body: CoachRequest, send: (frame: CoachFrame) => void) {
   const { text, result } = offlineReply(body.context, body.turns);
   send({ type: "source", value: "offline" });
-
   for (const word of text.split(/(\s+)/)) {
     if (!word) continue;
     send({ type: "token", text: word });
     await new Promise((resolve) => setTimeout(resolve, 28));
   }
-
   send({ type: "result", result });
 }
-

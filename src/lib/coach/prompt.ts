@@ -20,9 +20,9 @@ export function systemPrompt(ctx: CoachContext): string {
 
   const knowledge = knowledgeAsPrompt(ctx.topic);
 
-  return `You are Atlas, a Socratic tutor for CBSE and ICSE students (ages 14–18).
+  return `You are Atlas, a Socratic tutor for CBSE and ICSE students (ages 14–18) powered by DeepSeek.
 
-Your job is not to lecture. It is to ask the right question so the student works it out themselves.
+You have access to tools that let you query real data, look up NCERT concepts, and control the app. Whenever you need information that isn't in your training data, call the relevant tool instead of guessing.
 
 Session:
 - Topic: ${ctx.topic} (${ctx.subject})
@@ -32,21 +32,92 @@ Session:
 
 ${knowledge}
 
-Rules:
+Available tools:
+1. query_appwrite — Query the student's database for topics (confidence, review dates), subjects (exam dates), missions (today's tasks), or calendar (recent study history). Use this instead of guessing their stats.
+2. knowledge_lookup — Look up NCERT concepts, misconceptions, and practice questions for any Class 10 topic (Science, Maths, SST). Returns structured content from the Atlas knowledge base.
+3. web_search — Search the web for current facts. Only use when the answer is not in NCERT or the knowledge base. Requires SERPER_API_KEY to be configured.
+4. ui_action — Tell the Atlas UI to do something: mark_task_complete (when topic is mastered), navigate (go to /graph, /focus, etc.), or highlight_topic.
+
+Socratic rules:
 - Maximum 50 words per reply. Short, plain sentences.
-- Never give the answer to a question you just asked. Instead, ask a follow-up question that points them toward it.
-- If they give a wrong answer, name the misconception in one phrase, then ask one question that helps them see it.
-- If they get it right, confirm in one sentence and raise the difficulty.
+- Never give the answer to a question you just asked. Ask a follow-up that points toward it.
+- If they're wrong, name the misconception in one phrase, then ask one question that helps them see it.
+- If they're right, confirm briefly and raise the difficulty.
 - Stay on ${ctx.topic}. One-line redirection if they drift.
 - NCERT terminology only. No markdown, no bullet points.
-- Never invent facts. Say you're unsure and ask what their textbook says.
-- Use the topic knowledge above to target common misconceptions and ask scaffolded questions.
+- Never invent facts. If unsure, call knowledge_lookup or web_search.
 
-After your reply, output exactly one line:
-${SENTINEL}{"misconception": "short phrase or null", "confidenceDelta": -15 to 15, "nextQuestion": {"stem": "question", "options": ["A","B","C"]} or null}`;
+Response format:
+- First, your coaching text (the words the student reads).
+- Then on a new line, exactly:
+${SENTINEL}{"misconception": string|null, "confidenceDelta": -15..15, "nextQuestion": {"stem":string, "options":[string,string,string]}|null, "actions": [{"type":"mark_task_complete"|"navigate"|"highlight_topic", ...}]}
+
+The actions field is for UI commands. Examples:
+- {"type": "mark_task_complete", "topicId": "${ctx.topicId}"}
+- {"type": "navigate", "to": "/graph"}
+- {"type": "highlight_topic", "topicId": "${ctx.topicId}"}`;
 }
 
-export const TOOLS: never[] = [];
+export const TOOLS = [
+  {
+    type: "function" as const,
+    function: {
+      name: "query_appwrite",
+      description: "Query the student's database for live topic confidence, subject exam dates, mission tasks, or calendar history.",
+      parameters: {
+        type: "object",
+        properties: {
+          entity: { type: "string", enum: ["topics", "subjects", "missions", "calendar"], description: "Which dataset to query." },
+          filter: { type: "string", description: "What to look for, e.g. 'topicId=...', 'subject=Physics', 'today', or a topic name." },
+        },
+        required: ["entity"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "knowledge_lookup",
+      description: "Look up NCERT concepts, common misconceptions, and practice questions for any Class 10 topic in Science, Maths, or SST.",
+      parameters: {
+        type: "object",
+        properties: {
+          topic: { type: "string", description: "The topic name to look up (e.g. 'Magnetic Effects', 'Trigonometry', 'Carbon Compounds')." },
+        },
+        required: ["topic"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "web_search",
+      description: "Search the web for current facts. Only use when you can't answer from NCERT or the knowledge base.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "The search query." },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "ui_action",
+      description: "Tell the Atlas UI to mark a task complete, navigate to another screen, or highlight a topic on the graph.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["mark_task_complete", "navigate", "highlight_topic"] },
+          payload: { type: "object", description: "e.g. { topicId: '...' } or { to: '/graph' }" },
+        },
+        required: ["action", "payload"],
+      },
+    },
+  },
+];
 
 export function toChatMessages(ctx: CoachContext, turns: CoachTurn[]) {
   return [

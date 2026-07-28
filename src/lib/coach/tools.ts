@@ -6,6 +6,7 @@
  */
 
 import { getServerTopics, getServerSubjects, getServerMission, getServerCalendarDays } from "@/lib/data";
+import { getKnowledge } from "@/lib/coach/knowledge-graph";
 import type { CoachAction, ToolCall } from "@/lib/coach/types";
 
 export interface ToolResult {
@@ -26,6 +27,8 @@ export async function executeTool(call: ToolCall): Promise<ToolResult> {
   switch (name) {
     case "query_appwrite":
       return queryAppwrite(args);
+    case "knowledge_lookup":
+      return knowledgeLookup(args);
     case "web_search":
       return webSearch(args);
     case "ui_action":
@@ -33,6 +36,19 @@ export async function executeTool(call: ToolCall): Promise<ToolResult> {
     default:
       return { ok: false, result: `Unknown tool: ${name}` };
   }
+}
+
+async function knowledgeLookup(args: Record<string, unknown>): Promise<ToolResult> {
+  const topic = String(args.topic ?? "");
+  if (!topic) return { ok: false, result: "No topic provided." };
+  const knowledge = getKnowledge(topic);
+  const concepts = knowledge.concepts.map((c) => `  - ${c.name}: ${c.blurb}`).join("\n");
+  const misconceptions = knowledge.misconceptions.map((m) => `  - WRONG: "${m.wrong}" → CORRECT: "${m.right}"`).join("\n");
+  const questions = knowledge.questions.map((q, i) => `  ${i + 1}. ${q}`).join("\n");
+  return {
+    ok: true,
+    result: `## ${knowledge.ncert}\n### Concepts\n${concepts}\n### Misconceptions\n${misconceptions}\n### Practice Questions\n${questions}`,
+  };
 }
 
 async function queryAppwrite(args: Record<string, unknown>): Promise<ToolResult> {

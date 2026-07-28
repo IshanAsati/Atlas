@@ -1,6 +1,11 @@
 const DB_ID = "atlas";
 const BUCKET_ID = "syllabi";
 
+const NCERT_BUCKETS = {
+  science: "6a68e392002c9f9cc421",
+  math: "6a68e598001354634d95",
+} as const;
+
 const COLLECTIONS = {
   students: "students",
   subjects: "subjects",
@@ -44,4 +49,4 @@ export async function getStorage() {
   return _storage;
 }
 
-export { DB_ID, BUCKET_ID, COLLECTIONS };
+export { DB_ID, BUCKET_ID, NCERT_BUCKETS, COLLECTIONS };
