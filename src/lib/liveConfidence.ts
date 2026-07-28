@@ -20,6 +20,7 @@ const KEY = "atlas-confidence";
 let overrides: Record<string, number> = {};
 let hydrated = false;
 const listeners = new Set<() => void>();
+const pendingSaves = new Map<string, ReturnType<typeof setTimeout>>();
 
 function hydrate() {
   if (hydrated || typeof window === "undefined") return;
@@ -47,7 +48,7 @@ const subscribe = (fn: () => void) => {
 
 /** Apply a delta from an evaluation and tell everyone reading this topic. */
 export function applyConfidenceDelta(topicId: string, delta: number) {
-  if (!delta) return;
+  if (!delta || !topicId) return;
   hydrate();
   const seed = seedTopics.find((t) => t.id === topicId)?.confidence ?? 0;
   const current = overrides[topicId] ?? seed;
@@ -56,12 +57,19 @@ export function applyConfidenceDelta(topicId: string, delta: number) {
   persist();
   listeners.forEach((fn) => fn());
 
-  // Persist to Appwrite in the background — fire-and-forget
-  fetch(`/api/topics`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ topicId, confidence: clamped }),
-  }).catch(() => { /* offline — sessionStorage still holds the value */ });
+  /* Coalesce rapid coach turns into a single PATCH per topic. Without
+     debouncing, every coach reply triggers a fetch. */
+  const existing = pendingSaves.get(topicId);
+  if (existing) clearTimeout(existing);
+  const timer = setTimeout(() => {
+    pendingSaves.delete(topicId);
+    fetch(`/api/topics`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ topicId, confidence: clamped }),
+    }).catch(() => { /* offline — sessionStorage still holds the value */ });
+  }, 250);
+  pendingSaves.set(topicId, timer);
 }
 
 export function resetConfidence() {

@@ -56,7 +56,10 @@ async function safeGet<T>(collection: string, id: string): Promise<T | null> {
     const d = await db();
     const doc = await d.getDocument(DB_ID, collection, id);
     return clean(doc as unknown as Record<string, unknown>) as unknown as T;
-  } catch {
+  } catch (e) {
+    if (process.env.NODE_ENV === "development") {
+      console.warn(`[data] get ${collection}/${id} failed:`, e instanceof Error ? e.message : e);
+    }
     return null;
   }
 }
@@ -67,7 +70,10 @@ async function safeList<T>(collection: string, queries: string[] = []): Promise<
     const d = await db();
     const { documents } = await d.listDocuments(DB_ID, collection, queries);
     return documents.map((dd: Record<string, unknown>) => clean(dd)) as unknown as T[];
-  } catch {
+  } catch (e) {
+    if (process.env.NODE_ENV === "development") {
+      console.warn(`[data] list ${collection} failed:`, e instanceof Error ? e.message : e);
+    }
     return [];
   }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -37,20 +37,30 @@ export function FocusConsole() {
   const topicParam = searchParams.get("topic");
 
   const [missionTasks, setMissionTasks] = useState<MissionTask[]>([]);
+  const [missionLoaded, setMissionLoaded] = useState(false);
   const [markedComplete, setMarkedComplete] = useState(false);
   const [skipped, setSkipped] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     fetch("/api/mission")
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
-        if (data?.tasks) setMissionTasks(data.tasks);
+        if (cancelled) return;
+        if (data?.tasks?.length) setMissionTasks(data.tasks);
         else setMissionTasks(mission.tasks as MissionTask[]);
       })
-      .catch(() => setMissionTasks(mission.tasks as MissionTask[]));
+      .catch(() => {
+        if (cancelled) return;
+        setMissionTasks(mission.tasks as MissionTask[]);
+      })
+      .finally(() => {
+        if (!cancelled) setMissionLoaded(true);
+      });
+    return () => { cancelled = true; };
   }, []);
 
-  const task =
+  const task: MissionTask | undefined =
     missionTasks.find((t) => topicParam ? t.topicId === topicParam : t.status === "active") ??
     missionTasks.find((t) => t.status === "active") ??
     missionTasks[0];
@@ -62,6 +72,16 @@ export function FocusConsole() {
   /* Everything the coach needs to behave like a coach, pulled from the
      same records the planner used to pick this task. */
   const coachContext = useMemo<CoachContext>(() => {
+    if (!task) {
+      return {
+        topicId: "",
+        topic: "",
+        subject: "",
+        confidence: 50,
+        lastSeenDays: 0,
+        examInDays: 21,
+      };
+    }
     const topic = topics.find((t) => t.id === task.topicId);
     const subject = subjects.find((s) => s.name === task.subject);
     return {
@@ -74,10 +94,30 @@ export function FocusConsole() {
     };
   }, [task]);
 
-  const openingTurns = useMemo(() => openingTurnsFor(task), [task]);
+  /* Only seed the coach thread once, when task first becomes available. */
+  const [initialTurns, setInitialTurns] = useState<CoachTurn[]>([]);
+  const prevTaskId = useRef<string | null>(null);
+  useEffect(() => {
+    if (task && prevTaskId.current !== task.id) {
+      prevTaskId.current = task.id;
+      setInitialTurns(openingTurnsFor(task));
+    }
+  }, [task]);
 
   const finished = left === 0;
   const ticking = running && !finished;
+
+  /* Reset the "marked complete" badge after 2s — debounced by a ref so
+     rapid clicks don't pile up multiple setTimeouts. */
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!markedComplete) return;
+    if (resetTimer.current) clearTimeout(resetTimer.current);
+    resetTimer.current = setTimeout(() => setMarkedComplete(false), 2000);
+    return () => {
+      if (resetTimer.current) clearTimeout(resetTimer.current);
+    };
+  }, [markedComplete]);
 
   useEffect(() => {
     if (!ticking) return;
@@ -86,6 +126,7 @@ export function FocusConsole() {
   }, [ticking]);
 
   const handleMarkComplete = () => {
+    if (!task) return;
     applyConfidenceDelta(task.topicId, 5);
     setMissionTasks((prev) => {
       const next: MissionTask[] = prev.map((t) =>
@@ -100,7 +141,6 @@ export function FocusConsole() {
       return next;
     });
     setMarkedComplete(true);
-    setTimeout(() => setMarkedComplete(false), 2000);
   };
 
   const handleSkipToBreak = () => {
@@ -113,6 +153,16 @@ export function FocusConsole() {
 
   return (
     <div className="flex min-h-screen flex-col px-5 py-6 sm:px-8">
+      {!missionLoaded ? (
+        <div className="mx-auto flex flex-1 items-center justify-center">
+          <Micro className="text-ink-3">Loading mission…</Micro>
+        </div>
+      ) : !task ? (
+        <div className="mx-auto flex flex-1 items-center justify-center">
+          <Micro className="text-ink-3">No active task</Micro>
+        </div>
+      ) : (
+        <>
       {/* Nothing here but the exit and what you're working on */}
       <header className="flex items-center justify-between gap-4">
         <Link
@@ -231,11 +281,13 @@ export function FocusConsole() {
               exit={reduce ? undefined : { opacity: 0, x: 24 }}
               transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
             >
-              <CoachPanel context={coachContext} initialTurns={openingTurns} onMarkComplete={handleMarkComplete} />
+              <CoachPanel context={coachContext} initialTurns={initialTurns} onMarkComplete={handleMarkComplete} />
             </motion.aside>
           )}
         </AnimatePresence>
       </div>
+        </>
+      )}
     </div>
   );
 }
