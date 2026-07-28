@@ -57,56 +57,79 @@ export function FocusConsole() {
     missionTasks.find((t) => t.status === "active") ??
     missionTasks[0];
 
-  const [presetIdx, setPresetIdx] = useState(1); // 25 min default
+  const [presetIdx, setPresetIdx] = useState(1);
   const preset = PRESETS[presetIdx];
   const [repetitions, setRepetitions] = useState(1);
 
-  const [left, setLeft] = useState(preset.session);
+  const sessionDuration = preset.session;
+  const breakDuration = preset.break;
+
+  const [left, setLeft] = useState(sessionDuration);
   const [running, setRunning] = useState(false);
   const [onBreak, setOnBreak] = useState(false);
   const [sessionCount, setSessionCount] = useState(0);
   const [markedComplete, setMarkedComplete] = useState(false);
+  const [done, setDone] = useState(false);
 
   const finished = left === 0;
   const ticking = running && !finished;
 
   useEffect(() => {
-    setLeft(preset.session);
+    setLeft(sessionDuration);
     setOnBreak(false);
     setRunning(false);
     setSessionCount(0);
-  }, [preset.session]);
+    setDone(false);
+  }, [sessionDuration]);
 
   useEffect(() => {
     if (!ticking) return;
     const id = setInterval(() => {
       setLeft((s) => {
         if (s <= 1) {
-          setRunning(false);
-          if (!onBreak) {
-            setSessionCount((c) => c + 1);
-            setOnBreak(true);
-            return preset.break;
-          } else {
-            setOnBreak(false);
-            return preset.session;
-          }
+          return 0;
         }
         return s - 1;
       });
     }, 1000);
     return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ticking, onBreak, preset]);
+  }, [ticking]);
+
+  useEffect(() => {
+    if (!finished || done) return;
+    if (onBreak) {
+      if (sessionCount >= repetitions) {
+        setDone(true);
+        setRunning(false);
+        return;
+      }
+      setOnBreak(false);
+      setRunning(true);
+      setLeft(sessionDuration);
+    } else {
+      setSessionCount((c) => c + 1);
+      setOnBreak(true);
+      setLeft(breakDuration);
+    }
+  }, [finished, onBreak, done, sessionCount, repetitions, sessionDuration, breakDuration]);
 
   const handlePlayPause = () => {
+    if (done) {
+      setLeft(sessionDuration);
+      setOnBreak(false);
+      setSessionCount(0);
+      setDone(false);
+      setRunning(true);
+      return;
+    }
     if (finished && !onBreak) {
-      setLeft(preset.session);
+      setLeft(sessionDuration);
     }
     setRunning((v) => !v);
   };
 
   const handleSkipToBreak = () => {
+    if (done) return;
     setLeft(0);
     setRunning(false);
   };
@@ -128,7 +151,7 @@ export function FocusConsole() {
   }, [markedComplete]);
 
   const totalSessions = repetitions;
-  const elapsed = 1 - left / (onBreak ? preset.break : preset.session);
+  const elapsed = 1 - left / (onBreak ? breakDuration : sessionDuration);
 
   return (
     <div className="flex min-h-screen flex-col px-5 py-6 sm:px-8">
@@ -232,15 +255,17 @@ export function FocusConsole() {
             </div>
 
             <p className="micro mt-6 text-ink-3">
-              {finished && onBreak
-                ? "Break time · stretch, hydrate"
-                : finished
-                  ? "Session done"
-                  : ticking
-                    ? onBreak
-                      ? "Break · rest your eyes"
-                      : "Running · phone face down"
-                    : "Paused · press play to start"}
+              {done
+                ? "All done · great work today"
+                : finished && onBreak
+                  ? "Break time · stretch, hydrate"
+                  : finished
+                    ? "Session done"
+                    : ticking
+                      ? onBreak
+                        ? "Break · rest your eyes"
+                        : "Running · phone face down"
+                      : "Paused · press play to start"}
             </p>
 
             {/* Customization */}

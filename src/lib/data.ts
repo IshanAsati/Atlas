@@ -15,6 +15,8 @@ import {
   COLLECTIONS,
 } from "@/lib/appwrite/server";
 
+import { getSessionUserId } from "@/lib/auth/session";
+
 import {
   student as mockStudent,
   subjects as mockSubjects,
@@ -32,7 +34,11 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const STUDENT_ID = "student-1";
+/** Get the current user ID from the session cookie, falling back to student-1. */
+async function resolveStudentId(): Promise<string> {
+  const sessionUserId = await getSessionUserId();
+  return sessionUserId ?? "student-1";
+}
 
 /** Strip Appwrite metadata from a document, keeping only our fields. */
 function clean<T extends Record<string, unknown>>(doc: T): T {
@@ -96,9 +102,10 @@ export interface StudentProfile {
 }
 
 export async function getServerStudent(): Promise<StudentProfile> {
-  const doc = await safeGet<StudentProfile>(COLLECTIONS.students, STUDENT_ID);
+  const studentId = await resolveStudentId();
+  const doc = await safeGet<StudentProfile>(COLLECTIONS.students, studentId);
   if (doc) return doc;
-  return { id: STUDENT_ID, ...mockStudent };
+  return { id: studentId, ...mockStudent };
 }
 
 // ---------------------------------------------------------------------------
@@ -106,8 +113,9 @@ export async function getServerStudent(): Promise<StudentProfile> {
 // ---------------------------------------------------------------------------
 
 export async function getServerSubjects(): Promise<Subject[]> {
+  const sid = await resolveStudentId();
   const docs = await safeList<Subject>(COLLECTIONS.subjects, [
-    `equal("studentId", "${STUDENT_ID}")`,
+    `equal("studentId", "${sid}")`,
   ]);
   if (docs.length > 0) return docs;
   return [...mockSubjects];
@@ -118,7 +126,8 @@ export async function getServerSubjects(): Promise<Subject[]> {
 // ---------------------------------------------------------------------------
 
 export async function getServerTopics(subjectId?: string): Promise<Topic[]> {
-  const queries = [`equal("studentId", "${STUDENT_ID}")`];
+  const sid = await resolveStudentId();
+  const queries = [`equal("studentId", "${sid}")`];
   if (subjectId) queries.push(`equal("subjectId", "${subjectId}")`);
   const docs = await safeList<Topic>(COLLECTIONS.topics, queries);
   if (docs.length > 0) return docs;
@@ -143,9 +152,10 @@ export interface ServerMission {
 }
 
 export async function getServerMission(date?: string): Promise<ServerMission> {
+  const sid = await resolveStudentId();
   const target = date ?? new Date().toISOString().slice(0, 10);
   const missions = await safeList<Omit<ServerMission, "tasks">>(COLLECTIONS.missions, [
-    `equal("studentId", "${STUDENT_ID}")`,
+    `equal("studentId", "${sid}")`,
     `equal("date", "${target}")`,
   ]);
 
@@ -176,9 +186,10 @@ export async function getServerCalendarDays(
   year: number,
   month: number,
 ): Promise<CalendarDay[]> {
+  const sid = await resolveStudentId();
   const prefix = `${year}-${String(month + 1).padStart(2, "0")}`;
   const docs = await safeList<CalendarDay>(COLLECTIONS.calendarDays, [
-    `equal("studentId", "${STUDENT_ID}")`,
+    `equal("studentId", "${sid}")`,
     `startsWith("date", "${prefix}")`,
   ]);
   if (docs.length > 0) return docs;
@@ -212,10 +223,11 @@ export async function saveExtractedSubjects(
   tops: Omit<Topic, "id">[],
 ) {
   if (!process.env.APPWRITE_SECRET_KEY) return;
+  const sid = await resolveStudentId();
   const d = await db();
-  // Clear existing
-  const existingSubs = await safeList<Subject>(COLLECTIONS.subjects);
-  const existingTops = await safeList<Topic>(COLLECTIONS.topics);
+  // Clear existing for this user
+  const existingSubs = await safeList<Subject>(COLLECTIONS.subjects, [`equal("studentId", "${sid}")`]);
+  const existingTops = await safeList<Topic>(COLLECTIONS.topics, [`equal("studentId", "${sid}")`]);
   for (const s of existingSubs) {
     await d.deleteDocument(DB_ID, COLLECTIONS.subjects, s.id);
   }
@@ -226,13 +238,13 @@ export async function saveExtractedSubjects(
   for (const s of subs) {
     await d.createDocument(DB_ID, COLLECTIONS.subjects, await genId(), {
       ...s,
-      studentId: STUDENT_ID,
+      studentId: sid,
     });
   }
   for (const t of tops) {
     await d.createDocument(DB_ID, COLLECTIONS.topics, await genId(), {
       ...t,
-      studentId: STUDENT_ID,
+      studentId: sid,
     });
   }
 }
@@ -243,11 +255,12 @@ export async function saveMission(
   tasks: Omit<MissionTask, "id">[],
 ) {
   if (!process.env.APPWRITE_SECRET_KEY) return;
+  const sid = await resolveStudentId();
   const d = await db();
-  const mId = `m-${date}`;
+  const mId = `m-${sid}-${date}`;
   try { await d.deleteDocument(DB_ID, COLLECTIONS.missions, mId); } catch {}
   await d.createDocument(DB_ID, COLLECTIONS.missions, mId, {
-    studentId: STUDENT_ID,
+    studentId: sid,
     date,
     totalMinutes,
   });

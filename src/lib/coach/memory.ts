@@ -1,11 +1,11 @@
 /**
  * Coach memory persistence — loads and saves coaching threads to Appwrite.
+ * Scoped per-user via the session cookie.
  */
 
 import { getDatabases, DB_ID, COLLECTIONS } from "@/lib/appwrite/server";
+import { getSessionUserId } from "@/lib/auth/session";
 import type { CoachTurn } from "@/lib/coach/types";
-
-const STUDENT_ID = "student-1";
 
 async function db() {
   return getDatabases();
@@ -18,10 +18,11 @@ async function genId() {
 
 export async function loadThread(topicId: string): Promise<CoachTurn[]> {
   if (!process.env.APPWRITE_SECRET_KEY) return [];
+  const studentId = (await getSessionUserId()) ?? "student-1";
   const databases = await db();
   try {
     const { documents } = await databases.listDocuments(DB_ID, COLLECTIONS.coachThreads, [
-      `equal("studentId", "${STUDENT_ID}")`,
+      `equal("studentId", "${studentId}")`,
       `equal("topicId", "${topicId}")`,
     ]);
     if (documents.length === 0) return [];
@@ -36,14 +37,15 @@ export async function loadThread(topicId: string): Promise<CoachTurn[]> {
 
 export async function saveThread(topicId: string, turns: CoachTurn[]) {
   if (!process.env.APPWRITE_SECRET_KEY) return;
+  const studentId = (await getSessionUserId()) ?? "student-1";
   const databases = await db();
   try {
     const { documents } = await databases.listDocuments(DB_ID, COLLECTIONS.coachThreads, [
-      `equal("studentId", "${STUDENT_ID}")`,
+      `equal("studentId", "${studentId}")`,
       `equal("topicId", "${topicId}")`,
     ]);
     const payload = {
-      studentId: STUDENT_ID,
+      studentId,
       topicId,
       turns: JSON.stringify(turns),
     };
