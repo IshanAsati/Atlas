@@ -16,27 +16,61 @@ not a metaphor here — it's the data model.
 
 ---
 
-## Before you leave the house
+## The one thing that can lock you out
 
-```bash
-npm run dev
-npm run check:coach     # must print "LIVE"
+**Login talks to Appwrite, which is a remote service.** That is true on
+localhost and on a deployment alike — there is no offline path for auth. The
+coach degrades gracefully without a network; signing in does not.
+
+So: **log in before you go on stage, and do not reload the page.** The session
+cookie lasts a week. If the network drops mid-demo the coach carries on
+offline and the data panels show their designed empty states, but a reload
+puts you at a login screen you can't get past.
+
+## Running it — pick one, have both ready
+
+### Localhost (fewer moving parts)
+
+Needs `.env.local` in the project root. Ask Ishan for the values; never commit
+this file.
+
+```
+APPWRITE_ENDPOINT=
+APPWRITE_PROJECT_ID=
+APPWRITE_SECRET_KEY=
+DEEPSEEK_API_KEY=
 ```
 
-If it prints `OFFLINE`, the key isn't loading. Check `.env.local` exists and
-that you restarted `npm run dev` after creating it.
+```bash
+npm install
+npm run dev          # restart this AFTER creating .env.local
+npm run check:coach  # must print "LIVE"
+```
 
-Then, at the venue, **run `npm run check:coach` again on the hotspot** before
-you go up. If it says OFFLINE there, don't panic — the coach still works, the
-badge just reads "Offline" and you have a better story than the team before you.
+If login says *"Atlas can't reach its database"*, the Appwrite variables
+aren't loading — that message means config, not a wrong password. If it says
+*"Invalid email or password"*, that one really is the credentials.
 
-Other pre-flight:
+### Vercel (no laptop setup, but a deploy has to succeed tonight)
 
+Set the same four variables in the Vercel project settings, not in a file.
+Deploy tonight and open the URL once so it isn't a cold start on stage.
+
+**Decide before you leave.** Whichever you pick, open it, log in, and leave
+the tab sitting on the dashboard.
+
+## Pre-flight
+
+- `npm run check:coach` at home, then **again at the venue on the hotspot**.
+  If it says OFFLINE there, don't panic — the coach still answers, the badge
+  just reads "Offline", and that's a better story than the team before you.
+- Log in and leave the tab open. Don't reload.
 - Close every other tab. A backgrounded tab freezes animations.
 - Browser zoom at 100%.
-- Reload the page right before you start — confidence resets to seed data.
 - Pick your theme for the room. Dark for a dim hall, light for a bright one.
 - Phone hotspot already connected and tested, not "ready to connect".
+- **Don't linger on `/progress`.** Every number on it is still placeholder
+  data (AGENTS.md 25.3). It looks finished, which is the trap.
 
 ---
 
