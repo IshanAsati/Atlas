@@ -7,6 +7,7 @@ import { Groove, Micro, Panel } from "@/components/ui/Panel";
 import { ChevronIcon } from "@/components/ui/Icons";
 import { useAtlasData } from "@/lib/atlas-context";
 import { DayDetail, type PlannedDay } from "@/components/calendar/DayDetail";
+import Link from "next/link";
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 const MONTHS = [
@@ -241,16 +242,20 @@ function DayCell({
             : undefined;
 
   return (
-    <div
+    <button
+      type="button"
       title={title}
+      onClick={onSelect}
+      aria-pressed={selected}
+      aria-label={`${day}${state ? ` · ${title}` : ""}`}
       className={cn(
         "group relative flex aspect-square min-w-0 flex-col items-center justify-center gap-1 rounded-key",
         "transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
         state === "missed"
           ? "bg-linear-145 from-base-lo to-base-hi shadow-inset"
           : state
-            ? "bg-linear-145 from-base-hi to-base-lo shadow-raised-sm"
-            : "",
+            ? "bg-linear-145 from-base-hi to-base-lo shadow-raised-sm hover:shadow-raised active:shadow-pressed"
+            : "hover:bg-linear-145 hover:from-base-lo hover:to-base-hi hover:shadow-inset",
         isToday && "shadow-inset from-base-lo to-base-hi bg-linear-145 ring-1 ring-teal/40",
         selected && "ring-2 ring-teal",
       )}
@@ -275,7 +280,7 @@ function DayCell({
       ) : (
         <span className="size-1.5" />
       )}
-    </div>
+    </button>
   );
 }
 

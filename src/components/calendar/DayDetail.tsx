@@ -3,6 +3,7 @@
 import { Groove, Micro, Panel } from "@/components/ui/Panel";
 import { EmptyBay, SkeletonLines } from "@/components/ui/States";
 import { daysUntil } from "@/lib/mock";
+import Link from "next/link";
 
 /* The shape /api/calendar returns. Declared here rather than imported from
    the data layer for the same reason `atlas-context` declares its own
@@ -181,26 +182,28 @@ function PlannedTopics({
       <Micro className="block">{today ? "Planned for today" : "Planned"}</Micro>
       <ul className="mt-3 space-y-2.5">
         {plan.topics.map((topic) => (
-          <li
-            key={topic.id}
-            className="flex items-center gap-3 rounded-key bg-linear-145 from-base-hi to-base-lo px-3.5 py-3 shadow-raised-sm"
-          >
-            <span
-              className="size-2 shrink-0 rounded-full"
-              style={{
-                background:
-                  accentVar[accentBySubject?.[topic.subject] ?? ""] ?? "var(--color-ink-3)",
-              }}
-            />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[0.9rem] font-medium text-ink">
-                {topic.name}
+          <li key={topic.id}>
+            <Link
+              href={`/focus?topic=${topic.id}`}
+              className="flex items-center gap-3 rounded-key bg-linear-145 from-base-hi to-base-lo px-3.5 py-3 shadow-raised-sm hover:shadow-raised active:shadow-pressed transition-all duration-200"
+            >
+              <span
+                className="size-2 shrink-0 rounded-full"
+                style={{
+                  background:
+                    accentVar[accentBySubject?.[topic.subject] ?? ""] ?? "var(--color-ink-3)",
+                }}
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[0.9rem] font-medium text-ink">
+                  {topic.name}
+                </span>
+                <span className="micro mt-1 block text-ink-3">{topic.subject}</span>
               </span>
-              <span className="micro mt-1 block text-ink-3">{topic.subject}</span>
-            </span>
-            <span className="readout shrink-0 text-[0.7rem] font-medium text-ink-2">
-              {topic.minutes}m
-            </span>
+              <span className="readout shrink-0 text-[0.7rem] font-medium text-ink-2">
+                {topic.minutes}m
+              </span>
+            </Link>
           </li>
         ))}
       </ul>
