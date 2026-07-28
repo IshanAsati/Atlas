@@ -165,23 +165,72 @@ The LearningGraph has a crash path when `subjects` is empty (prerender error). F
 
 **What it needs:** The graph should fetch topics from `GET /api/topics` and subjects from `GET /api/topics?type=subjects` instead of relying on mock data. The SVG layout should handle dynamic subject counts. Topic inspector panel should load from the NCERT knowledge graph instead of showing hardcoded placeholder text.
 
-### 24. DeepSeek model is not explicitly set to the best available
-The coach uses `deepseek-v4-flash` via the `DEEPSEEK_MODEL` env var. This should be explicitly configured for the best model available for the competition. DeepSeek offers several models — `deepseek-v4-pro` for heavier reasoning, `deepseek-v4-flash` for speed. The coach prompt and tool definitions should be tuned to whichever model is chosen.
+### 24. DeepSeek model is Flash — confirmed working
+The coach and extraction routes both default to `deepseek-v4-flash` (line 10 of `extract/route.ts`, line 19 of `coach/route.ts`). Flash is the right model for this use case — faster streaming for the coach, cheaper per-token, and more than capable of the Socratic tutoring + structured JSON output we need. No `.env` variable is set explicitly, but the `??` fallback handles that. All Vercel deploys get the API key from the environment variable, not from `.env.local`.
 
-**What it needs:** Set `DEEPSEEK_MODEL=deepseek-v4-pro` in `.env.local` and verify the coach response quality improves. If the pro model is slower, consider using flash for streaming and pro for the tool-calling loop (non-streaming).
+### 25. Critical UI/UX improvements needed
 
-### 25. UI/UX needs a dedicated improvement pass
-The current UI is functional but rough in many places. Specific issues:
-- **Loading states**: All components use `<Micro>Loading…</Micro>` text. No skeleton placeholders, no progress indicators.
-- **Empty states**: When Appwrite has no data, users see blank panels or "null" text. No onboarding guidance or CTAs.
-- **Graph page**: The 3-level tree layout is amateurish. Nodes don't show confidence visually, the SVG is fixed-width, and topic names overflow.
-- **Calendar**: Day cells are `<div>` elements — not keyboard-accessible. The month switcher works but the statistics panel shows "0%" completion rate.
-- **Onboarding**: Uploading a PDF that fails shows seed data anyway (the extraction endpoint's fallback). No error recovery flow.
-- **Pomodoro**: The session completion animation is basic. No sound effects for session/break transitions.
-- **Theme**: The full light/dark system works but some panels have mismatched elevation levels in dark mode.
-- **Mobile**: No screen has been tested below 640px. The sidebar dock and graph overflow are the biggest risks.
+The app is functional but has major UX gaps that hurt the demo. These are ordered by impact:
 
-**What it needs:** A dedicated UI/UX polish pass before deployment: skeleton loading components, keyboard navigation, accessible focus states, responsive testing at 375px, sound effects for Pomodoro, empty-state illustrations, and a full dark-mode audit against the token scale.
+#### 25.1 Empty states — every screen needs one
+Right now when a new user signs up and goes through onboarding, the dashboard shows blank panels with "No mission yet." text. There's no CTA to start extraction, no guidance, no visual indication of what to do next.
+
+**What to do:** Every section needs a designed empty state:
+- **Dashboard** when no mission: show a prompt Card with "Upload your syllabus to get started" and a big upload button that links to `/onboarding`
+- **Calendar** when no data: show a pulsing calendar grid with "Your study days appear here" overlay
+- **Graph** when no topics: show the tree skeleton with "Add subjects to see your learning graph"
+- **Progress** when no student profile: show "Complete onboarding to see your stats"
+
+#### 25.2 Loading skeletons everywhere
+Every component currently shows `<Micro>Loading…</Micro>` text. This feels dead. Users can't tell if something is genuinely loading or stuck.
+
+**What to do:** Replace text loaders with shimmer skeleton variants of each component:
+- `SkeletonPanel` — pulsing `<Panel>` with same dimensions (rounded-bay, inset shadow, animated gradient)
+- `SkeletonMeter` — pulsing bar matching ConfidenceMeter dimensions
+- `SkeletonGraph` — 3 pulsing circles in a column for the tree columns
+- `SkeletonCalendar` — grid of pulsing day cells (same aspect-square, greyed)
+Framer Motion's `animate={{ opacity: [0.3, 0.6, 0.3] }}` with `transition={{ repeat: Infinity, duration: 1.5 }}` is all it takes. The `loading` flag from DataProvider controls visibility.
+
+#### 25.3 Progress page — real data, not mock
+The `/progress` page is the most critical thing to fix. It imports `momentumHistory`, `subjectConfidence`, `weeklyMinutes`, `student`, and `subjects` directly from `src/lib/mock.ts`. Every number on the page is fake. The chart components (`MomentumTrend`, `WeeklyBars`) show hardcoded arrays.
+
+**What to do:** Create `GET /api/progress` that computes from real Appwrite data:
+- `momentumHistory` (14 days): from `calendar_days` — each day's record maps to a momentum value
+- `weeklyMinutes` (7 days): study minutes per day for the current week
+- `subjectConfidence`: average of topic confidences per subject
+- `student`: from `getServerStudent()`
+Wire the Progress page to fetch from this endpoint instead of importing mock.
+
+#### 25.4 Graph page — fix layout and confidence visualization
+The graph currently crashes on prerender when subjects is empty (guard added but the root issue — no real data — remains). The 3-level tree has fixed SVG `width={900}`, hardcoded node positions, and topic names overflow.
+
+**What to do:** Three things:
+- Fix the SVG to be responsive: `viewBox` instead of fixed width, calculate column width dynamically from `subjects.length`
+- Show topic confidence visually: colour-coded node borders (red < 40, amber 40-70, green > 70)
+- Topic inspector panel on click: show knowledge graph concepts for that topic (`getKnowledge()` from the NCERT knowledge base)
+
+#### 25.5 Pomodoro — sound effects and completion animation
+The timer ticks down in silence. "Session done" or "Break time" just appears as text. Users don't feel a transition.
+
+**What to do:** Add two things:
+- `useSound()` hook that plays a short chime on session/break/done state change (Web Audio API oscillator, no audio files needed — a simple 440Hz beep for 200ms costs nothing)
+- Completion animation: when `done` or `finished` becomes true, trigger a brief scale + fade pulse on the timer readout (`motion.div` with `scale: [1, 1.05, 1]` over 300ms)
+
+#### 25.6 Mobile — test at 375px
+No screen has been tested below 640px. The sidebar rail switches to a bottom dock at `md:` breakpoints, but the grid layouts overflow:
+- Dashboard 2-column grid: use `grid-cols-1` below `lg:`, then `lg:grid-cols-2`
+- Calendar month grid: day cells at `aspect-square` with 7 columns — at 375px each cell is ~40px, the dots won't show. Add `min-w-0` and reduce `gap-2` to `gap-1`
+- Graph SVG: `width={900}` is 2.4× the viewport at 375px. Use `max-w-full overflow-x-auto` or recalculate as a responsive `viewBox`
+
+#### 25.7 Progress chart accessibility
+The `MomentumTrend` and `WeeklyBars` components are SVG `<path>` elements with no labels, no aria attributes, no keyboard interaction.
+
+**What to do:** Add `role="img"`, `aria-label` with a text summary of the chart data, and fallback text inside the SVG. This matters for the demo judges who may use screen readers.
+
+#### 25.8 First-run tutorial overlay
+A brand-new user sees empty screens everywhere. They need guidance.
+
+**What to do:** After onboarding completes, show a one-time overlay (check localStorage flag `atlas-tutorial-done`). The overlay highlights the sidebar rail items one by one with a tooltip explaining what each screen does. Skips after 4 taps or "Got it" button. Users who know the app see it once and never again.
 
 ### 26. No AI usage in graph, mission planner, or progress page
 Currently AI (DeepSeek) is only used in:
