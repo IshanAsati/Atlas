@@ -83,6 +83,7 @@ export function Onboarding() {
 
   const handleFile = async (file: File) => {
     setReading(true);
+    setOcrPercent(null);
     setExtractError(null);
     setUsingSample(false);
     setStageIndex(0);
@@ -97,6 +98,7 @@ export function Onboarding() {
            The extraction route accepts a `text` form field for this path. */
         setStages(ocrStages);
         const text = await ocrImage(file, setOcrPercent);
+        setOcrPercent(null);
         if (text.length < MIN_OCR_CHARS) {
           throw new Error(`Atlas read ${text.length} characters — too few to extract a syllabus. Try a clearer photo or a PDF scan.`);
         }
@@ -196,6 +198,15 @@ export function Onboarding() {
       setExtractError("Lost the connection while reading. Check your network and try again.");
     }
   };
+
+  /* Reading a photo happens entirely in the browser and can take a while,
+     during which no server stage arrives — so the bar would otherwise sit
+     frozen at zero. Let OCR drive the first stage's share of it. */
+  const stageShare = 100 / Math.max(stages.length, 1);
+  const readProgress =
+    ocrPercent !== null
+      ? (ocrPercent / 100) * stageShare
+      : (stageIndex / Math.max(stages.length, 1)) * 100;
 
   const triggerFile = () => fileInputRef.current?.click();
 
@@ -384,6 +395,7 @@ export function Onboarding() {
                               )}
                             >
                               {text}
+                              {i === 0 && ocrPercent !== null ? ` ${ocrPercent}%` : ""}
                             </span>
                           </li>
                         ))}
@@ -391,7 +403,7 @@ export function Onboarding() {
                       <span className="mt-6 block h-1.5 w-full overflow-hidden rounded-full bg-groove">
                         <motion.span
                           className="block h-full rounded-full bg-teal"
-                          animate={{ width: `${(stageIndex / Math.max(stages.length, 1)) * 100}%` }}
+                          animate={{ width: `${readProgress}%` }}
                           transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
                         />
                       </span>

@@ -66,7 +66,7 @@ export default function ProgressPage() {
     );
   }
 
-  const { student, subjects, subjectConfidence, momentumHistory, weeklyMinutes, streak, bestStreak, levelProgress, completionRate } = data;
+  const { student, subjectConfidence, momentumHistory, weeklyMinutes, streak, bestStreak, levelProgress, completionRate } = data;
   // Calculate average session minutes from weekly data
   const studiedMinutes = weeklyMinutes.reduce((s, d) => s + d.minutes, 0);
   const studiedDays = weeklyMinutes.filter((d) => d.minutes > 0).length;

@@ -5,7 +5,6 @@ import { Groove, Micro, Panel } from "@/components/ui/Panel";
 import { EmptyBay, Skeleton } from "@/components/ui/States";
 import { useAtlasData } from "@/lib/atlas-context";
 import { daysUntil } from "@/lib/mock";
-import { ChevronIcon } from "@/components/ui/Icons";
 
 const HORIZON = 35; // days shown on the track
 

@@ -29,11 +29,13 @@ export function CoachScreen() {
      coach knows the student's real confidence rather than a mock default. */
   const { mission, topics, subjects, loading } = useAtlasData();
   const loaded = !loading;
-  const missionTasks: MissionTask[] = mission?.tasks ?? [];
 
   /* Any topic can be coached, not only one that's in today's mission —
      the graph links straight here. */
   const task: MissionTask | undefined = useMemo(() => {
+    /* Derived inside the memo: `mission?.tasks ?? []` makes a new array every
+       render, which would defeat the memo entirely. */
+    const missionTasks: MissionTask[] = mission?.tasks ?? [];
     const standalone = topicParam ? topics.find((t) => t.id === topicParam) : undefined;
     return (
     missionTasks.find((t) => (topicParam ? t.topicId === topicParam : t.status === "active")) ??
@@ -52,7 +54,7 @@ export function CoachScreen() {
       missionTasks.find((t) => t.status === "active") ??
       missionTasks[0]
     );
-  }, [missionTasks, topicParam, topics, subjects]);
+  }, [mission, topicParam, topics, subjects]);
 
   const coachContext = useMemo<CoachContext>(() => {
     if (!task) {

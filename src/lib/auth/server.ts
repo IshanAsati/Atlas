@@ -6,7 +6,6 @@
  * - getSessionUser: verify a session token and return the user
  */
 
-import type { Models } from "node-appwrite";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _usersClient: any = null;
@@ -74,7 +73,7 @@ export async function loginSession(email: string, password: string): Promise<str
 export async function verifySession(cookie: string): Promise<AtlasUser | null> {
   try {
     const decoded = JSON.parse(Buffer.from(cookie, "base64").toString());
-    const { userId, secret } = decoded;
+    const { secret } = decoded;
 
     const { Client, Account } = await import("node-appwrite");
     const client = new Client()

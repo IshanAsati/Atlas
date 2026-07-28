@@ -11,7 +11,7 @@
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { Client, Account, Databases, ID, Users } from "node-appwrite";
+import { Client, Databases, ID, Users } from "node-appwrite";
 
 /* ----- env loader ----- */
 (function loadEnv() {
@@ -141,7 +141,6 @@ async function main() {
 
   // Map topic names to their generated IDs for mission tasks
   const tMap = Object.fromEntries(topicIds.map((t) => [t.name, t.id]));
-  const subjectNames = { [sId1]: "Physics", [sId2]: "Chemistry", [sId3]: "Biology", [sId4]: "Mathematics Standard" };
 
   const missionTasks = [
     { topicId: tMap["Magnetic Effects"], topic: "Magnetic Effects", subject: "Physics", reason: "Confidence fell to 30% and the Physics paper is 18 days out.", minutes: 40, status: "active", kind: "revise", order: 0 },

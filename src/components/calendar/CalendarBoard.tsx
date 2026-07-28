@@ -7,7 +7,6 @@ import { Groove, Micro, Panel } from "@/components/ui/Panel";
 import { ChevronIcon } from "@/components/ui/Icons";
 import { useAtlasData } from "@/lib/atlas-context";
 import { DayDetail, type PlannedDay } from "@/components/calendar/DayDetail";
-import Link from "next/link";
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 const MONTHS = [
