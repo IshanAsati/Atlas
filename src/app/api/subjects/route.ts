@@ -1,7 +1,44 @@
 import { NextResponse } from "next/server";
-import { getServerSubjects, updateSubjectExamDate } from "@/lib/data";
+import { getServerSubjects, saveExtractedSubjects, updateSubjectExamDate } from "@/lib/data";
+import { subjects as seedSubjects, topics as seedTopics } from "@/lib/mock";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * POST /api/subjects { sample: true } → seed the account with the sample
+ * Class 10 syllabus. The onboarding escape hatch needs to persist like a real
+ * extraction does, or the student lands on an empty dashboard having just
+ * been told setup succeeded.
+ */
+export async function POST(request: Request) {
+  try {
+    const body = (await request.json()) as { sample?: boolean };
+    if (!body?.sample) {
+      return NextResponse.json({ error: "Nothing to save." }, { status: 400 });
+    }
+
+    await saveExtractedSubjects(
+      seedSubjects.map(({ name, discipline, examDate, accent }) => ({
+        name,
+        discipline,
+        examDate,
+        accent,
+      })),
+      seedTopics.map(({ name, subjectId, confidence, nextReview, lastSeenDays }) => ({
+        name,
+        subjectId,
+        confidence,
+        nextReview,
+        lastSeenDays,
+      })),
+    );
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("[subjects] POST error:", error);
+    return NextResponse.json({ error: "Failed to save the sample." }, { status: 500 });
+  }
+}
 
 /**
  * GET   /api/subjects  → list the student's subjects

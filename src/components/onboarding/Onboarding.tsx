@@ -49,13 +49,25 @@ export function Onboarding() {
   const [buildingMission, setBuildingMission] = useState(false);
   const [subjectDates, setSubjectDates] = useState<Record<string, string>>({});
 
-  const loadSample = () => {
+  const loadSample = async () => {
     setUsingSample(true);
     setExtractError(null);
     setExtractedSubjects(seedSubjects);
     setTopicCounts(Object.fromEntries(seedSubjects.map((s) => [s.id, 4])));
     setSubjectDates(Object.fromEntries(seedSubjects.map((s) => [s.id, s.examDate])));
     setStep(1);
+
+    /* Persist it like a real extraction would, otherwise the dashboard is
+       still empty after onboarding "succeeds". */
+    try {
+      await fetch("/api/subjects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sample: true }),
+      });
+    } catch {
+      /* The confirm step still works from local state. */
+    }
   };
 
   const handleFile = async (file: File) => {
@@ -163,6 +175,9 @@ export function Onboarding() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    /* Clear the value or picking the same file twice fires no change event —
+       which made "Try another file" silently do nothing after a failure. */
+    e.target.value = "";
     if (file) handleFile(file);
   };
 
@@ -256,15 +271,16 @@ export function Onboarding() {
                 <span className="text-ink-3">That&apos;s the whole setup.</span>
               </h1>
               <p className="mt-4 max-w-md text-[0.95rem] leading-relaxed text-ink-2">
-                A PDF or a photo of the printed sheet. Atlas reads the units, finds your
-                exam dates, and builds the topic graph. You don&apos;t type anything.
+                Atlas reads the units, finds your exam dates, and builds the topic
+                graph. You don&apos;t type anything. A scanned photo won&apos;t work yet —
+                it needs a PDF with real text in it.
               </p>
 
               {/* Intake slot */}
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf"
+                accept="application/pdf,.pdf"
                 className="hidden"
                 onChange={handleInputChange}
               />
@@ -292,7 +308,7 @@ export function Onboarding() {
                         <span className="block text-[0.95rem] font-medium text-ink">
                           Choose a file or drag it here
                         </span>
-                        <Micro className="mt-2 block">PDF, JPG or PNG · up to 20 MB</Micro>
+                        <Micro className="mt-2 block">Text-based PDF · up to 20 MB</Micro>
                       </span>
                     </motion.span>
                   ) : (
@@ -352,7 +368,7 @@ export function Onboarding() {
                     </button>
                     <button
                       type="button"
-                      onClick={loadSample}
+                      onClick={() => void loadSample()}
                       className="micro text-ink-3 underline underline-offset-4 hover:text-ink-2"
                     >
                       Continue with a sample syllabus
@@ -364,7 +380,7 @@ export function Onboarding() {
                   No syllabus handy?{" "}
                   <button
                     type="button"
-                    onClick={loadSample}
+                    onClick={() => void loadSample()}
                     className="text-teal-deep underline underline-offset-4"
                   >
                     Use a sample Class 10 syllabus
