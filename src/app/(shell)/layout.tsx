@@ -1,4 +1,5 @@
 import { Rail } from "@/components/shell/Rail";
+import { DataProvider } from "@/lib/atlas-context";
 
 /**
  * The panel shell: a fixed control rail and the working surface beside
@@ -7,11 +8,13 @@ import { Rail } from "@/components/shell/Rail";
  */
 export default function ShellLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative isolate min-h-screen">
-      <Rail />
-      <main className="px-5 pb-28 pt-8 sm:px-8 md:pb-12 md:pl-[112px] md:pr-10 lg:pr-14">
-        <div className="mx-auto w-full max-w-[1180px]">{children}</div>
-      </main>
-    </div>
+    <DataProvider>
+      <div className="relative isolate min-h-screen">
+        <Rail />
+        <main className="px-5 pb-28 pt-8 sm:px-8 md:pb-12 md:pl-[112px] md:pr-10 lg:pr-14">
+          <div className="mx-auto w-full max-w-[1180px]">{children}</div>
+        </main>
+      </div>
+    </DataProvider>
   );
 }

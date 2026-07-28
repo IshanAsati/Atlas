@@ -7,7 +7,8 @@ import { Key } from "@/components/ui/Key";
 import { Micro, Panel } from "@/components/ui/Panel";
 import { MomentumDial } from "@/components/ui/MomentumDial";
 import { ArrowIcon, CheckIcon, ClockIcon } from "@/components/ui/Icons";
-import { mission, student, type MissionTask } from "@/lib/mock";
+import { useAtlasData } from "@/lib/atlas-context";
+import { type MissionTask } from "@/lib/mock";
 
 const kindLabel: Record<MissionTask["kind"], string> = {
   revise: "Revise",
@@ -17,6 +18,7 @@ const kindLabel: Record<MissionTask["kind"], string> = {
 
 export function TodayMission() {
   const reduce = useReducedMotion();
+  const { mission, student } = useAtlasData();
   const firstOpen = mission.tasks.find((t) => t.status !== "complete") ?? mission.tasks[0];
   const [selectedId, setSelectedId] = useState(firstOpen.id);
   const [queue, setQueue] = useState(mission.tasks);

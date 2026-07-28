@@ -5,7 +5,8 @@ import { cn } from "@/lib/cn";
 import { IconKey } from "@/components/ui/Key";
 import { Groove, Micro, Panel } from "@/components/ui/Panel";
 import { ChevronIcon } from "@/components/ui/Icons";
-import { calendarDays, subjects, TODAY } from "@/lib/mock";
+import { useAtlasData } from "@/lib/atlas-context";
+import { calendarDays, TODAY } from "@/lib/mock";
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 const MONTHS = [
@@ -36,6 +37,7 @@ function buildWeeks(year: number, month: number) {
 }
 
 export function CalendarBoard() {
+  const { subjects } = useAtlasData();
   const [cursor, setCursor] = useState({ year: 2026, month: 6 });
   const weeks = useMemo(() => buildWeeks(cursor.year, cursor.month), [cursor]);
 
@@ -43,7 +45,7 @@ export function CalendarBoard() {
     const map = new Map<string, (typeof subjects)[number]>();
     subjects.forEach((s) => map.set(s.examDate, s));
     return map;
-  }, []);
+  }, [subjects]);
 
   const move = (delta: number) =>
     setCursor(({ year, month }) => {

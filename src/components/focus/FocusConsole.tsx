@@ -36,9 +36,19 @@ export function FocusConsole() {
   const searchParams = useSearchParams();
   const topicParam = searchParams.get("topic");
 
-  const [missionTasks, setMissionTasks] = useState<MissionTask[]>(mission.tasks);
+  const [missionTasks, setMissionTasks] = useState<MissionTask[]>([]);
   const [markedComplete, setMarkedComplete] = useState(false);
   const [skipped, setSkipped] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/mission")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data?.tasks) setMissionTasks(data.tasks);
+        else setMissionTasks(mission.tasks as MissionTask[]);
+      })
+      .catch(() => setMissionTasks(mission.tasks as MissionTask[]));
+  }, []);
 
   const task =
     missionTasks.find((t) => topicParam ? t.topicId === topicParam : t.status === "active") ??

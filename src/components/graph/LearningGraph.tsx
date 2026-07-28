@@ -9,7 +9,8 @@ import { ConfidenceMeter } from "@/components/ui/Meters";
 import { statusColor, statusLabel } from "@/lib/status";
 import { ArrowIcon } from "@/components/ui/Icons";
 import { useLiveTopics } from "@/lib/liveConfidence";
-import { subjects, topicStatus, type Topic } from "@/lib/mock";
+import { useAtlasData } from "@/lib/atlas-context";
+import { topicStatus, type Topic } from "@/lib/mock";
 
 /* Geometry is fixed rather than measured, so the connector curves can be
    drawn without a layout pass. */
@@ -30,6 +31,7 @@ interface Placed {
 
 export function LearningGraph() {
   const reduce = useReducedMotion();
+  const { subjects } = useAtlasData();
   const [subjectId, setSubjectId] = useState(subjects[0].id);
   const [topicId, setTopicId] = useState<string | null>("t3");
 
