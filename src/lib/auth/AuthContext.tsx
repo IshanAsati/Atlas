@@ -14,7 +14,7 @@ interface AuthState {
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const Ctx = createContext<AuthState>({
@@ -23,7 +23,7 @@ const Ctx = createContext<AuthState>({
   error: null,
   login: async () => {},
   register: async () => {},
-  logout: () => {},
+  logout: async () => {},
 });
 
 export function useAuth() {
@@ -111,7 +111,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await login(email, password);
   }, [login]);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    /* Clear the httpOnly cookie server-side too — dropping the local token
+       alone left the session intact everywhere that matters. */
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      /* Offline: the local token still goes, and the cookie expires. */
+    }
     clearSession();
     setUser(null);
   }, []);

@@ -13,13 +13,12 @@ export function AccountSection() {
   const router = useRouter();
   const [leaving, setLeaving] = useState(false);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setLeaving(true);
-    logout();
-    /* The proxy would bounce a cookie-less request here anyway; going
-       there directly means the student sees the login form rather than
-       a redirect flicker. */
-    router.push("/onboarding");
+    /* Wait for the session cookie to be cleared before navigating, or the
+       proxy still sees it and lets the next page straight through. */
+    await logout();
+    router.push("/welcome");
   };
 
   return (
@@ -45,7 +44,7 @@ export function AccountSection() {
           ) : null}
         </div>
 
-        <Key onClick={handleLogout} disabled={leaving}>
+        <Key onClick={() => void handleLogout()} disabled={leaving}>
           {leaving ? "Logging out…" : "Log out"}
         </Key>
       </div>
